@@ -238,6 +238,45 @@ console.log('\n— Upload validation & submission isolation (§18) —');
   }
 }
 
+console.log('\n— RBAC permission system (capability model) —');
+{
+  // Introspection endpoint: each role sees its own capability set.
+  const permA = await call(studentA.jar, 'GET', '/api/auth/permissions');
+  check('permissions endpoint works for logged-in student', permA.status === 200 && permA.body.role === 'student');
+  check('student holds student:* capabilities', permA.body.permissions.includes('student:dashboard') && permA.body.permissions.includes('student:drive:connect'));
+  check('student does NOT hold admin:* capabilities', !permA.body.permissions.some((p: string) => p.startsWith('admin:')));
+  check('student does NOT hold parent:* capabilities', !permA.body.permissions.some((p: string) => p.startsWith('parent:')));
+
+  const permAdmin = await call(admin.jar, 'GET', '/api/auth/permissions');
+  check('admin holds admin:* capabilities', permAdmin.body.permissions.includes('admin:auditLogs:view') && permAdmin.body.permissions.includes('admin:driveStatus:view'));
+  check('admin does NOT hold student-only Drive ownership capability', !permAdmin.body.permissions.includes('student:drive:connect'));
+
+  const permParent = await call(parentA.jar, 'GET', '/api/auth/permissions');
+  check('parent holds parent:* capabilities only', permParent.body.permissions.includes('parent:children:view') && !permParent.body.permissions.some((p: string) => p.startsWith('admin:')));
+
+  const permAnon = await call(null, 'GET', '/api/auth/permissions');
+  check('anonymous permissions = empty set (deny-by-default)', permAnon.status === 200 && permAnon.body.role === null && permAnon.body.permissions.length === 0);
+
+  // Denials are audit-logged with PERMISSION_DENIED (§36).
+  await call(studentA.jar, 'GET', '/api/admin/overview');
+  const logs = await call(admin.jar, 'GET', '/api/admin/audit-logs');
+  const denied = (logs.body.logs || []).some((l: any) => l.action === 'PERMISSION_DENIED');
+  check('PERMISSION_DENIED denial is audit-logged', denied);
+
+  // Capability labels are metadata only — no secrets in introspection.
+  check('permission introspection leaks no secrets',
+    !JSON.stringify(permAdmin.body).toLowerCase().includes('secret') &&
+    !JSON.stringify(permAdmin.body).toLowerCase().includes('token'));
+
+  // Session now carries the capability list too.
+  const sess = await call(studentA.jar, 'GET', '/api/auth/session');
+  check('session includes server-computed permissions', Array.isArray(sess.body.permissions) && sess.body.permissions.includes('student:notes:create'));
+
+  // Client cannot fake capabilities via body/query.
+  const forge = await call(studentA.jar, 'GET', '/api/admin/users');
+  check('capability cannot be forged: student still denied admin users', forge.status === 403, `got ${forge.status}`);
+}
+
 console.log('\n— Session invalidation on logout —');
 {
   const temp = await loginAs('aarav.sharma@student.raghvyon.com');

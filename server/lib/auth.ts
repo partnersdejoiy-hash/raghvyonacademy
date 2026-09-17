@@ -12,6 +12,7 @@ import type { Request, Response, NextFunction } from 'express';
 import bcrypt from 'bcryptjs';
 import { db, findUserByEmail, findUserByGoogleSub, createUser, linkGoogleIdentity, userRowToProfile } from '../db';
 import { logAudit } from './audit';
+import { hasPermission, type Permission, type Role } from './permissions';
 
 /* ------------------------------------------------------------------ */
 /* Session typing                                                      */
@@ -21,6 +22,7 @@ export interface SessionUser {
   email: string;
   name: string;
   role: 'student' | 'parent' | 'admin';
+  permissions?: string[];
 }
 
 declare module 'express-session' {
@@ -56,9 +58,32 @@ export function requireRole(...roles: Array<'student' | 'parent' | 'admin'>) {
       return res.status(401).json({ error: 'Your session has expired. Please sign in again.' });
     }
     if (!roles.includes(user.role)) {
+      logAudit('PERMISSION_DENIED', user.id, user.email, `Role '${user.role}' lacks access (needs: ${roles.join('|')}) to ${req.method} ${req.path}`, req.ip);
       return res.status(403).json({ error: 'You do not have permission to access this resource.' });
     }
     (req as any).user = user;
+    next();
+  };
+}
+
+/**
+ * Capability-based guard (deny-by-default): the endpoint declares the
+ * PERMISSION it needs; access is granted only if the session's
+ * server-verified role holds that capability. Body-supplied role/permission
+ * values are never consulted.
+ */
+export function requirePermission(permission: Permission) {
+  return (req: Request, res: any, next: NextFunction) => {
+    const user = getSessionUser(req);
+    if (!user) {
+      return res.status(401).json({ error: 'Your session has expired. Please sign in again.' });
+    }
+    if (!hasPermission(user.role as Role, permission)) {
+      logAudit('PERMISSION_DENIED', user.id, user.email, `Missing capability '${permission}' for ${req.method} ${req.path}`, req.ip);
+      return res.status(403).json({ error: 'You do not have permission to perform this action.' });
+    }
+    (req as any).user = user;
+    (req as any).permission = permission;
     next();
   };
 }

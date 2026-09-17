@@ -24,6 +24,7 @@ export type AuditAction =
   | 'ROLE_CHANGE'
   | 'ACCOUNT_DELETION_REQUEST'
   | 'ADMIN_ACTION'
+  | 'PERMISSION_DENIED'
   | 'AUTH_FAILED'
   | 'RATE_LIMITED'
   | 'NEW_ENQUIRY'

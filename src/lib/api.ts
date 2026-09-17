@@ -145,7 +145,9 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 
 export const api = {
   config: () => request<{ googleSignIn: boolean; driveOAuth: boolean; gemini: boolean; demoMode: boolean }>('/config'),
-  session: () => request<{ user: ApiUser | null }>('/auth/session'),
+  session: () => request<{ user: ApiUser | null; permissions?: string[] }>('/auth/session'),
+  authPermissions: () =>
+    request<{ role: string | null; permissions: string[]; labels: Record<string, string>; endpoints: Array<{ method: string; endpoint: string; permission: string }> }>('/auth/permissions'),
 
   login: (email: string, password: string) =>
     request<{ user: ApiUser }>('/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) }),

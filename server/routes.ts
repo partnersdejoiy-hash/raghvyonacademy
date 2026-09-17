@@ -32,12 +32,14 @@ import {
   getSessionUser,
   requireAuth,
   requireRole,
+  requirePermission,
   buildSignInAuthUrl,
   exchangeSignInCode,
   resolveAccountForGoogleIdentity,
   verifyPasswordLogin,
   isGoogleSignInConfigured,
 } from './lib/auth';
+import { permissionsFor, PERMISSION_LABELS, PUBLIC_ENDPOINT_PERMISSIONS } from './lib/permissions';
 import { logAudit } from './lib/audit';
 import { rateLimit } from './lib/rateLimit';
 import {
@@ -266,7 +268,27 @@ api.post('/auth/logout', (req, res) => {
 
 api.get('/auth/session', (req, res) => {
   const user = getSessionUser(req);
-  res.json({ user: user ? { ...user, profile: userRowToProfile(db.prepare('SELECT * FROM users WHERE id = ?').get(user.id)) } : null });
+  if (!user) return res.json({ user: null, permissions: [] });
+  res.json({
+    user: { ...user, profile: userRowToProfile(db.prepare('SELECT * FROM users WHERE id = ?').get(user.id)) },
+    // Capability list for UI affordances ONLY — the server still enforces
+    // every permission on each request.
+    permissions: permissionsFor(user.role),
+  });
+});
+
+/**
+ * RBAC introspection — the caller's OWN permissions + role matrix labels.
+ * Never exposes anything user-specific beyond the caller themselves.
+ */
+api.get('/auth/permissions', (req, res) => {
+  const user = getSessionUser(req);
+  res.json({
+    role: user?.role ?? null,
+    permissions: user ? permissionsFor(user.role) : [],
+    labels: PERMISSION_LABELS,
+    endpoints: PUBLIC_ENDPOINT_PERMISSIONS,
+  });
 });
 
 /**
@@ -687,7 +709,7 @@ api.put('/admin/teacher-profile', requireRole('admin'), (req, res) => {
   res.json({ success: true, teacherProfile: getTeacherProfile() });
 });
 
-api.get('/admin/users', requireRole('admin'), (_req, res) => {
+api.get('/admin/users', requirePermission('admin:users:view'), (_req, res) => {
   res.json({ users: listUsersForAdmin() });
 });
 
@@ -702,7 +724,7 @@ api.get('/admin/parent-links', requireRole('admin'), (_req, res) => {
   res.json({ links: rows });
 });
 
-api.get('/admin/drive-connections', requireRole('admin'), (_req, res) => {
+api.get('/admin/drive-connections', requirePermission('admin:driveStatus:view'), (_req, res) => {
   // Application-level metadata ONLY (connected yes/no + masked email). No tokens.
   const rows = listDriveConnectionsForAdmin().map((r: any) => ({
     userId: r.user_id,
@@ -715,7 +737,7 @@ api.get('/admin/drive-connections', requireRole('admin'), (_req, res) => {
   res.json({ connections: rows });
 });
 
-api.get('/admin/audit-logs', requireRole('admin'), (_req, res) => {
+api.get('/admin/audit-logs', requirePermission('admin:auditLogs:view'), (_req, res) => {
   res.json({ logs: listAuditLogs(150) });
 });
 

@@ -13,7 +13,7 @@ interface AdminDashboardProps {
   onNavigate: (view: 'home' | 'student' | 'parent' | 'admin' | 'docs', sectionId?: string) => void;
 }
 
-type Tab = 'overview' | 'courses' | 'enquiries' | 'demos' | 'users' | 'drive' | 'audit';
+type Tab = 'overview' | 'courses' | 'enquiries' | 'demos' | 'users' | 'drive' | 'audit' | 'access';
 
 export const AdminDashboard: React.FC<AdminDashboardProps> = ({ user, onLogout, showToast, onNavigate }) => {
   const [activeTab, setActiveTab] = useState<Tab>('overview');
@@ -25,6 +25,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ user, onLogout, 
   const [links, setLinks] = useState<any[]>([]);
   const [connections, setConnections] = useState<any[]>([]);
   const [logs, setLogs] = useState<any[]>([]);
+  const [permData, setPermData] = useState<{ role: string; permissions: string[]; labels: Record<string, string>; endpoints: Array<{ method: string; endpoint: string; permission: string }> } | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -58,6 +59,11 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ user, onLogout, 
   };
 
   useEffect(() => { loadAll(); }, []);
+
+  // RBAC introspection — this admin's live capability set from the server.
+  useEffect(() => {
+    api.authPermissions().then(setPermData).catch(() => {});
+  }, []);
 
   const loadUsersTab = () => {
     api.adminUsers().then(d => setUsers(d.users)).catch(() => {});
@@ -185,6 +191,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ user, onLogout, 
             ['users', 'Users & Links'],
             ['drive', 'Drive Status'],
             ['audit', 'Audit Logs'],
+            ['access', 'Access Control'],
           ] as Array<[Tab, string]>).map(([key, label]) => (
             <button
               key={key}
@@ -425,6 +432,92 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ user, onLogout, 
               <KeyRound className="w-4 h-4 text-[#F7C948] shrink-0 mt-0.5" />
               <span>Drive scope is strictly <code>https://www.googleapis.com/auth/drive.file</code>. Tokens are AES-256-GCM encrypted at rest and never returned by any admin endpoint.</span>
             </div>
+          </div>
+        )}
+
+        {/* ACCESS CONTROL (RBAC) */}
+        {activeTab === 'access' && (
+          <div className="space-y-6">
+            <div className="bg-white rounded-3xl p-6 sm:p-8 border border-gray-200 shadow-2xs">
+              <div className="flex items-center space-x-2 mb-1">
+                <ShieldCheck className="w-5 h-5 text-[#35B8A6]" />
+                <h3 className="text-xl font-bold text-[#172B4D]">Role-Based Access Control</h3>
+              </div>
+              <p className="text-xs sm:text-sm text-gray-500">
+                Live capability map enforced by the server on every request. Hiding UI is cosmetic — the API denies anything outside these permissions, and every denial is audit-logged.
+              </p>
+              {permData && (
+                <div className="mt-4 inline-flex items-center space-x-2 bg-[#FFF9EE] border border-[#2454A6]/15 rounded-full px-4 py-1.5 text-xs font-bold text-[#2454A6]">
+                  <span>Your session role:</span>
+                  <span className="uppercase tracking-wide">{permData.role}</span>
+                  <span className="text-gray-400">·</span>
+                  <span>{permData.permissions.length} permissions</span>
+                </div>
+              )}
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-6">
+              {(['student', 'parent', 'admin'] as const).map((r) => {
+                const rolePerms = permData
+                  ? Object.keys(permData.labels).filter((p) => permData.permissions.includes(p) && permData.role === r)
+                  : [];
+                const matrixNote: Record<string, string> = {
+                  student: 'Own data only. Cannot reach any other student, parent or admin resource.',
+                  parent: 'Verified children only — never by email. No OAuth tokens, ever.',
+                  admin: 'Application metadata only. Drive tokens are architecturally invisible.',
+                };
+                return (
+                  <div key={r} className="bg-white rounded-3xl border border-gray-200 shadow-2xs p-5">
+                    <div className={`inline-flex items-center space-x-1.5 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wide ${
+                      r === 'admin' ? 'bg-[#2454A6]/10 text-[#2454A6]' : r === 'parent' ? 'bg-[#F7C948]/20 text-[#172B4D]' : 'bg-[#35B8A6]/10 text-[#0e7d6f]'
+                    }`}>
+                      <UserCog className="w-3.5 h-3.5" />
+                      <span>{r}</span>
+                    </div>
+                    <p className="text-[11px] text-gray-500 mt-2 mb-3">{matrixNote[r]}</p>
+                    <ul className="space-y-1.5">
+                      {(permData
+                        ? Object.entries(permData.labels)
+                            .filter(([perm]) => perm.startsWith(`${r}:`))
+                            .map(([perm, label]) => ({ perm, label, mine: permData.permissions.includes(perm) }))
+                        : []
+                      ).map(({ perm, label, mine }) => (
+                        <li key={perm} className="flex items-start space-x-2 text-[11px] text-[#172B4D]/85">
+                          <CheckCircle2 className={`w-3.5 h-3.5 shrink-0 mt-0.5 ${mine ? 'text-[#35B8A6]' : 'text-gray-300'}`} />
+                          <span>{label}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                );
+              })}
+            </div>
+
+            {permData && (
+              <div className="bg-white rounded-3xl p-6 sm:p-8 border border-gray-200 shadow-2xs">
+                <h4 className="text-sm font-bold text-[#172B4D] mb-3">Endpoint → Permission enforcement</h4>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-[11px] text-[#172B4D]">
+                    <thead className="bg-[#FFF9EE] border-y border-gray-200 text-gray-600 font-bold uppercase text-[10px]">
+                      <tr>
+                        <th className="py-2.5 px-4">Method</th>
+                        <th className="py-2.5 px-4">Endpoint</th>
+                        <th className="py-2.5 px-4">Required permission</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {permData.endpoints.map((e, i) => (
+                        <tr key={i} className="border-b border-gray-100">
+                          <td className="py-2 px-4 font-mono font-bold text-[#35B8A6]">{e.method}</td>
+                          <td className="py-2 px-4 font-mono">{e.endpoint}</td>
+                          <td className="py-2 px-4 font-mono text-[#2454A6]">{e.permission}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
           </div>
         )}
 
