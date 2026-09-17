@@ -1,0 +1,6 @@
+{
+  "name": "RAGHVYON ACADEMY",
+  "description": "Premium 3D education platform featuring interactive 3D learning elements, course management, student & parent portals, and Google Drive portfolio integration.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
