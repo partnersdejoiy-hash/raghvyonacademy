@@ -6,3 +6,9 @@ coverage/
 *.log
 .env*
 !.env.example
+
+# Local SQLite database (dev/preview only)
+data/
+
+# Stale local build output (unused)
+isolate/

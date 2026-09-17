@@ -1,0 +1,30 @@
+# Render Blueprint — RAGHVYON ACADEMY (single free service, zero manual config)
+#
+# Use in Render: New + → Blueprint → select this repository → Apply.
+# All build/start settings and env-var keys come from this file, so the
+# dashboard fields can never be mis-typed again.
+#
+# Secrets marked `sync: false` are prompted once at creation time —
+# nothing sensitive is stored in this repository.
+
+services:
+  - type: web
+    name: raghvyon-academy
+    runtime: node
+    plan: free
+    buildCommand: npm install --include=dev && npm run build
+    startCommand: node dist/server.cjs
+    envVars:
+      - key: NODE_ENV
+        value: production
+      # Auto-generates a strong random secret on first create.
+      - key: SESSION_SECRET
+        generateValue: true
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+      - key: GOOGLE_CLIENT_SECRET
+        sync: false
+      - key: ADMIN_EMAIL
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false
