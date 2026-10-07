@@ -42,6 +42,7 @@ import {
 import { permissionsFor, PERMISSION_LABELS, PUBLIC_ENDPOINT_PERMISSIONS } from './lib/permissions';
 import { logAudit } from './lib/audit';
 import { rateLimit } from './lib/rateLimit';
+import { randomToken } from './lib/crypto';
 import {
   isDriveConfigured,
   buildAuthUrl as buildDriveAuthUrl,
@@ -205,7 +206,7 @@ api.get('/auth/google', rateLimit({ windowMs: 60_000, max: 20 }), (req, res) => 
   if (!isGoogleSignInConfigured()) {
     return bad(res, 'Google Sign-In is not configured on this server. Please use email sign-in or contact the Academy.', 503);
   }
-  const state = Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2);
+  const state = randomToken();
   (req.session as any).oauthState = state;
   (req.session as any).oauthIntent = 'signin';
   (req.session as any).oauthReturnTo = typeof req.query.returnTo === 'string' ? req.query.returnTo : '/dashboard';
@@ -217,10 +218,14 @@ api.get('/auth/google/callback', async (req, res) => {
   try {
     const { code, state, error } = req.query as Record<string, string>;
     if (error) return redirectAfterOAuth(res, `/auth?error=${encodeURIComponent('google_cancelled')}`);
-    if (!code || !state || state !== (req.session as any).oauthState) {
+    if (!code || !state || req.session.oauthIntent !== 'signin' || state !== req.session.oauthState) {
       return redirectAfterOAuth(res, '/auth?error=' + encodeURIComponent('oauth_state'));
     }
-    (req.session as any).oauthState = undefined;
+    const requestedReturnTo = req.session.oauthReturnTo;
+    const returnTo = requestedReturnTo?.startsWith('/') && !requestedReturnTo.startsWith('//') && !requestedReturnTo.includes('\\') ? requestedReturnTo : '/dashboard';
+    delete req.session.oauthState;
+    delete req.session.oauthIntent;
+    delete req.session.oauthReturnTo;
 
     const identity = await exchangeSignInCode(code, publicOrigin(req) + '/api/auth/google/callback');
     if (!identity.emailVerified) {
@@ -229,13 +234,12 @@ api.get('/auth/google/callback', async (req, res) => {
     const user = resolveAccountForGoogleIdentity(identity);
 
     // Session fixation protection: regenerate before login.
-    await new Promise<void>((resolve) => (req.session as any).regenerate(() => resolve()));
+    await new Promise<void>((resolve, reject) => req.session.regenerate(error => error ? reject(error) : resolve()));
     (req.session as any).userId = user.id;
     logAudit('GOOGLE_LOGIN', user.id, user.email, 'Signed in via Google identity', req.ip);
 
-    const returnTo = (req.session as any).oauthReturnTo || '/dashboard';
-    (req.session as any).oauthReturnTo = undefined;
-    redirectAfterOAuth(res, returnTo.startsWith('/') ? returnTo : '/dashboard');
+    await new Promise<void>((resolve, reject) => req.session.save(error => error ? reject(error) : resolve()));
+    redirectAfterOAuth(res, returnTo);
   } catch {
     redirectAfterOAuth(res, '/auth?error=' + encodeURIComponent('google_failed'));
   }
@@ -251,7 +255,7 @@ api.post('/auth/login', rateLimit({ windowMs: 5 * 60_000, max: 10 }), async (req
   const user = await verifyPasswordLogin(email, password, req.ip);
   if (!user) return bad(res, 'Incorrect email or password.', 401);
 
-  await new Promise<void>((resolve) => (req.session as any).regenerate(() => resolve()));
+  await new Promise<void>((resolve) => req.session.regenerate(() => resolve()));
   (req.session as any).userId = user.id;
   logAudit('LOGIN', user.id, user.email, 'Password login', req.ip);
   res.json({ success: true, user: userRowToProfile(user) });
@@ -482,7 +486,7 @@ api.get('/drive/connect', requireAuth, rateLimit({ windowMs: 60_000, max: 10 }),
   if (!isDriveConfigured()) {
     return bad(res, 'Google Drive integration is not configured on this server. Please contact the Academy.', 503);
   }
-  const state = Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2);
+  const state = randomToken();
   (req.session as any).oauthState = state;
   (req.session as any).oauthIntent = 'drive';
   res.redirect(buildDriveAuthUrl(publicOrigin(req) + '/api/drive/oauth2callback', state));

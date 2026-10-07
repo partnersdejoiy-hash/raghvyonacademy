@@ -145,7 +145,7 @@ export async function exchangeSignInCode(code: string, redirectUri: string): Pro
   return {
     sub: ui.sub,
     email: ui.email.toLowerCase(),
-    emailVerified: ui.email_verified !== false,
+    emailVerified: ui.email_verified === true,
     name: ui.name || ui.email.split('@')[0],
     picture: ui.picture,
   };

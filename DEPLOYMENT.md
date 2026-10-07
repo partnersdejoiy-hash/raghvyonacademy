@@ -125,3 +125,5 @@ Here the SQLite file is persistent — full data durability at $0.
 - `GOOGLE_CLIENT_SECRET` rotated after any accidental exposure.
 - `ADMIN_EMAIL` set to the owner's Gmail only.
 - Never commit `.env` / `.env.local`.
+
+For the code-level authentication flow and remaining production limitations, see [AUTHENTICATION.md](AUTHENTICATION.md). Secret rotation also affects stored Drive token decryption; plan a reconnect or migration.

@@ -25,6 +25,7 @@ import {
 } from './components/PortalLoadingFallback';
 import { api, ApiUser, ApiCourse } from './lib/api';
 import { TeacherProfile } from './types';
+import { AdmissionsSection } from './components/AdmissionsSection';
 import { INITIAL_TEACHER_PROFILE } from './data/initialData';
 
 // Code Splitting: Lazy-loaded Dashboards and Portals
@@ -243,6 +244,7 @@ export default function App() {
             />
             <TeachingApproachSection onOpenDemoBooking={() => handleOpenDemoWithCourse()} />
             <TestimonialsSection onOpenDemoBooking={() => handleOpenDemoWithCourse()} />
+            <AdmissionsSection onOpenDemoBooking={() => handleOpenDemoWithCourse()} />
             <section id="contact" className="py-16 sm:py-20 bg-white border-t border-[#2454A6]/10">
               <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
                 <div className="bg-gradient-to-br from-[#FFF9EE] to-white rounded-3xl p-8 sm:p-12 border-2 border-[#2454A6]/15 shadow-sm">
