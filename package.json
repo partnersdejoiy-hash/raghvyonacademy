@@ -11,7 +11,8 @@
     "lint": "tsc --noEmit",
     "test:security": "node --import tsx tests/isolation.test.ts",
     "test:auth": "node --import tsx tests/auth-flow.test.ts",
-    "build:pages": "vite build"
+    "build:pages": "vite build",
+    "test:operations": "node --import tsx tests/operations.test.ts"
   },
   "dependencies": {
     "@google/genai": "^2.4.0",

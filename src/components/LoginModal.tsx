@@ -123,7 +123,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({
           <div className="flex-1 border-t border-gray-200" />
         </div>
 
-        {STATIC_PREVIEW && <div className="mb-4 rounded-xl bg-blue-50 p-4 text-sm text-[#172B4D]">Admin login runs on the Academy backend. This GitHub Pages preview cannot create an admin session. On the full site, sign in with the Google address configured as ADMIN_EMAIL.</div>}
+        {STATIC_PREVIEW && <div className="mb-4 rounded-xl bg-blue-50 p-4 text-sm text-[#172B4D]">Admin login runs on the Academy backend. This GitHub Pages preview cannot create an admin session. On the full site, students, parents and teachers use their Academy account. Owner sign-in uses the configured admin email and the password set privately on the server, or Google.</div>}
         {/* Password login */}
         <form onSubmit={handlePasswordSubmit} className="space-y-4">
           <div>

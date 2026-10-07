@@ -54,13 +54,13 @@ export const Header: React.FC<HeaderProps> = ({
           </div>
           <div className="flex items-center space-x-4">
             <a
-              href="https://wa.me/12133960065"
+              href="https://wa.me/918448736983"
               target="_blank"
               rel="noopener noreferrer"
               className="flex items-center space-x-1 hover:text-[#F7C948] transition-colors"
             >
               <MessageSquare className="w-3.5 h-3.5 text-[#35B8A6]" />
-              <span className="font-medium">+1 (213) 396-0065 (WhatsApp)</span>
+              <span className="font-medium">+91 8448736983 (WhatsApp)</span>
             </a>
             <span className="hidden md:inline text-white/40">|</span>
             <span className="hidden md:inline text-white/80">New Delhi-110062 & Global Online</span>
@@ -175,7 +175,7 @@ export const Header: React.FC<HeaderProps> = ({
                 className="flex items-center space-x-1.5 border border-[#2454A6] text-[#2454A6] hover:bg-[#2454A6] hover:text-white font-semibold text-xs px-3.5 py-2 rounded-full transition-all"
               >
                 <LogIn className="w-3.5 h-3.5" />
-                <span>Student Login</span>
+                <span>Academy Login</span>
               </button>
             )}
           </div>
@@ -280,11 +280,11 @@ export const Header: React.FC<HeaderProps> = ({
                 className="w-full border border-[#2454A6] text-[#2454A6] font-bold py-2 rounded-xl text-sm text-center flex items-center justify-center space-x-2"
               >
                 <LogIn className="w-4 h-4" />
-                <span>Student / Parent Login</span>
+                <span>Student / Parent / Admin Login</span>
               </button>
             )}
             <a
-              href="https://wa.me/12133960065"
+              href="https://wa.me/918448736983"
               target="_blank"
               rel="noopener noreferrer"
               className="w-full bg-[#25D366] text-white font-bold py-2 rounded-xl text-sm text-center flex items-center justify-center space-x-2 shadow-xs"

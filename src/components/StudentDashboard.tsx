@@ -1,3 +1,4 @@
+import { AcademyOperations } from './AcademyOperations';
 import React, { useState, useEffect } from 'react';
 import {
   BookOpen, CheckCircle2, FileText, HardDrive, Award, Plus, Upload, ExternalLink,
@@ -168,6 +169,7 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({
   return (
     <div className="min-h-screen bg-[#FFF9EE]/40 py-8 px-4 sm:px-6 lg:px-8">
       <div className="max-w-7xl mx-auto space-y-8">
+        <AcademyOperations user={user} />
 
         {/* Header card */}
         <div className="bg-white rounded-3xl p-6 sm:p-8 border border-gray-200/80 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-6">
