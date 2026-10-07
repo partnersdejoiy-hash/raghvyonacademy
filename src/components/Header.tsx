@@ -42,7 +42,7 @@ export const Header: React.FC<HeaderProps> = ({
   const isAuthed = !!currentUser && currentUser.role !== 'guest';
 
   return (
-    <header className="sticky top-0 z-50 bg-[#FFF9EE]/90 backdrop-blur-md border-b border-[#2454A6]/10">
+    <header className="academy-nav sticky top-0 z-50 bg-[#FFF9EE]/90 backdrop-blur-md border-b border-[#2454A6]/10">
       {/* Top bar */}
       <div className="bg-[#2454A6] text-white text-xs py-1.5 px-4">
         <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-1 text-center sm:text-left">
@@ -93,9 +93,9 @@ export const Header: React.FC<HeaderProps> = ({
               ['', 'Home'],
               ['about', 'About'],
               ['courses', 'Courses'],
-              ['subjects', 'Subjects'],
+
               ['approach', 'Teaching Approach'],
-              ['teacher', 'Faculty'],
+              ['teacher', 'Mentorship'],
               ['contact', 'Contact'],
             ].map(([id, label]) => (
               <button

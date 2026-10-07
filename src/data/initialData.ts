@@ -2,11 +2,10 @@ import { Course, TeacherProfile, LearningProgress, Assignment, StudyNote, Certif
 
 export const INITIAL_TEACHER_PROFILE: TeacherProfile = {
   name: 'Lead Academic Mentor & Educator',
-  title: 'Founder & Senior Instructor',
+  title: 'Academic Mentorship',
   experienceYears: 7,
   studentReach: 'Experience teaching students in India & American students',
   bio: 'With over 7 years of dedicated teaching experience, our lead instructor specializes in building deep mathematical intuition, scientific curiosity, and linguistic clarity. Teaching both Indian curriculum students and US-based students has shaped a culturally adaptive, highly communicative, and concept-first pedagogy.',
-  photoUrl: 'https://images.unsplash.com/photo-1560250097-0b93528c311a?auto=format&fit=crop&w=600&h=600&q=80',
   methodology: [
     'Concept-First Deep Dives (Understanding the "Why" before formulas)',
     'Personalized Diagnostic Pace tailored to each student’s confidence',

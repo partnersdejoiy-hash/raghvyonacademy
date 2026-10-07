@@ -12,7 +12,7 @@ import {
   Loader2,
 } from 'lucide-react';
 import { UserRole } from '../types';
-import { api, ApiUser, apiUrl } from '../lib/api';
+import { api, ApiUser, apiUrl, STATIC_PREVIEW } from '../lib/api';
 
 interface LoginModalProps {
   isOpen: boolean;
@@ -123,6 +123,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({
           <div className="flex-1 border-t border-gray-200" />
         </div>
 
+        {STATIC_PREVIEW && <div className="mb-4 rounded-xl bg-blue-50 p-4 text-sm text-[#172B4D]">Admin login runs on the Academy backend. This GitHub Pages preview cannot create an admin session. On the full site, sign in with the Google address configured as ADMIN_EMAIL.</div>}
         {/* Password login */}
         <form onSubmit={handlePasswordSubmit} className="space-y-4">
           <div>

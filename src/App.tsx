@@ -226,7 +226,7 @@ export default function App() {
 
       <main className="flex-1">
         {currentView === 'home' && (
-          <div className="space-y-0">
+          <div className="cosmos-home space-y-0">
             <Hero
               onOpenDemoBooking={() => handleOpenDemoWithCourse()}
               onOpenLogin={() => setIsLoginModalOpen(true)}
@@ -244,7 +244,7 @@ export default function App() {
               onSelectCourse={(c) => setSelectedCourseForDetail(c)}
             />
             <TeachingApproachSection onOpenDemoBooking={() => handleOpenDemoWithCourse()} />
-            <TestimonialsSection onOpenDemoBooking={() => handleOpenDemoWithCourse()} />
+
             <AdmissionsSection onOpenDemoBooking={() => handleOpenDemoWithCourse()} />
             <section id="contact" className="py-16 sm:py-20 bg-white border-t border-[#2454A6]/10">
               <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
