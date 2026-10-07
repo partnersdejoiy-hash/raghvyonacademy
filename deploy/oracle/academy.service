@@ -1,0 +1,22 @@
+[Unit]
+Description=Raghvyon Academy
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=academy
+Group=academy
+WorkingDirectory=/opt/raghvyonacademy
+EnvironmentFile=/etc/raghvyonacademy.env
+ExecStart=/usr/bin/node /opt/raghvyonacademy/dist/server.cjs
+Restart=on-failure
+RestartSec=5
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/raghvyonacademy
+
+[Install]
+WantedBy=multi-user.target
