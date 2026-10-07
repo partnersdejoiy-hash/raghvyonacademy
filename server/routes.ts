@@ -57,9 +57,13 @@ import {
   DRIVE_SCOPE,
   FOLDER_NAMES,
 } from './lib/googleDriveService';
+import { classroom } from './classroom';
+import { operations } from './operations';
 import { GoogleGenAI } from '@google/genai';
 
 export const api = Router();
+api.use('/operations', operations);
+api.use('/classroom', classroom);
 
 /* ------------------------------------------------------------------ */
 /* Upload handling (memory storage → streamed to the student's Drive)  */

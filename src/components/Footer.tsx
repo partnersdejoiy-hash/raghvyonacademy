@@ -54,13 +54,13 @@ export const Footer: React.FC<FooterProps> = ({
 
             <div className="pt-2 flex items-center space-x-3">
               <a
-                href="https://wa.me/12133960065"
+                href="https://wa.me/918448736983"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="bg-[#25D366] hover:bg-[#20ba59] text-white text-xs font-bold px-4 py-2.5 rounded-xl shadow-xs flex items-center space-x-2 transition-colors"
               >
                 <MessageSquare className="w-4 h-4" />
-                <span>Chat: +1 (213) 396-0065</span>
+                <span>Chat: +91 8448736983</span>
               </a>
             </div>
           </div>
@@ -148,7 +148,7 @@ export const Footer: React.FC<FooterProps> = ({
               </div>
               <div className="flex items-center space-x-2">
                 <Phone className="w-4 h-4 text-[#35B8A6] shrink-0" />
-                <span>+1 (213) 396-0065 (WhatsApp)</span>
+                <span>+91 8448736983 (WhatsApp)</span>
               </div>
               <div className="flex items-center space-x-2">
                 <Mail className="w-4 h-4 text-[#2454A6] shrink-0" />

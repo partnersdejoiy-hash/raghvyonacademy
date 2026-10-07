@@ -6,6 +6,8 @@
  * In development, Vite middleware serves the React app with HMR respected.
  */
 import express from 'express';
+import bcrypt from 'bcryptjs';
+import { SqliteSessionStore } from './server/lib/sessionStore';
 import session from 'express-session';
 import helmet from 'helmet';
 import path from 'path';
@@ -22,6 +24,12 @@ dotenv.config();
 dotenv.config({ path: '.env.local', override: true });
 
 seedDatabase();
+// Owner password is supplied through server secrets, never through frontend code.
+if (process.env.ADMIN_EMAIL && process.env.ADMIN_PASSWORD) {
+  const email = process.env.ADMIN_EMAIL.trim().toLowerCase();
+  const hash = bcrypt.hashSync(process.env.ADMIN_PASSWORD, 12);
+  db.prepare(`INSERT INTO users(email,name,password_hash,role) VALUES (?, 'Deepak Sharma', ?, 'admin') ON CONFLICT(email) DO UPDATE SET password_hash=excluded.password_hash, role='admin'`).run(email, hash);
+}
 initAuditLogger(db);
 
 const isProd = process.env.NODE_ENV === 'production';
@@ -58,7 +66,7 @@ function createApp() {
         useDefaults: true,
         directives: {
           'default-src': ["'self'"],
-          'script-src': ["'self'", "'unsafe-inline'", "'unsafe-eval'", 'https://apis.google.com'],
+          'script-src': ["'self'", "'unsafe-inline'", "'unsafe-eval'", 'https://apis.google.com', 'https://checkout.razorpay.com'],
           'style-src': ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com'],
           'font-src': ["'self'", 'https://fonts.gstatic.com', 'data:'],
           'img-src': ["'self'", 'data:', 'blob:', 'https:'],
@@ -68,7 +76,9 @@ function createApp() {
             'https://oauth2.googleapis.com',
             'https://www.googleapis.com',
             'https://generativelanguage.googleapis.com',
+            'https://*.razorpay.com',
           ],
+          'frame-src': ["'self'", 'https://*.razorpay.com'],
           'frame-ancestors': ["'self'"],
         },
       },
@@ -99,6 +109,16 @@ function createApp() {
     next();
   });
 
+  // Cookie-authenticated writes must come from the configured frontend or this origin.
+  app.use('/api', (req, res, next) => {
+    if (['GET', 'HEAD', 'OPTIONS'].includes(req.method)) return next();
+    const origin = req.headers.origin;
+    if (!origin) return next(); // server clients and tests; browsers send Origin on writes
+    const allowed = [APP_URL, process.env.FRONTEND_URL, `${req.protocol}://${req.get('host')}`].filter(Boolean).map(value => { try { return new URL(value!).origin; } catch { return ''; } });
+    if (!allowed.includes(origin)) return res.status(403).json({ error: 'This request origin is not allowed.' });
+    next();
+  });
+
   /* --- Body parsing (with request size limits) ---------------------- */
   app.use(express.json({ limit: '1mb' }));
   app.use(express.urlencoded({ extended: false, limit: '1mb' }));
@@ -114,6 +134,7 @@ function createApp() {
   app.use(
     session({
       name: 'raghvyon.sid',
+      store: new SqliteSessionStore(),
       secret: sessionSecret,
       resave: false,
       saveUninitialized: false,

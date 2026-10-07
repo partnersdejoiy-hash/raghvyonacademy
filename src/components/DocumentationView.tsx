@@ -127,7 +127,7 @@ and no shared Academy Drive anywhere in this codebase.`}
               </div>
               <div className="bg-[#FFF9EE] border border-[#2454A6]/15 rounded-2xl p-4 space-y-2">
                 <span className="font-bold text-[#2454A6] block">Sessions</span>
-                <p><code>express-session</code> with httpOnly + SameSite=Lax cookies, <code>SESSION_SECRET</code>-signed. Session id regenerates on login (fixation protection). Rotating <code>SESSION_SECRET</code> invalidates all sessions by design.</p>
+                <p><code>express-session</code> with httpOnly + SameSite=Lax cookies, <code>SESSION_SECRET</code>-signed. SQLite-backed sessions; session id regenerates on login (fixation protection). Rotating <code>SESSION_SECRET</code> invalidates all sessions by design.</p>
               </div>
               <div className="bg-[#FFF9EE] border border-[#2454A6]/15 rounded-2xl p-4 space-y-2">
                 <span className="font-bold text-[#2454A6] block">Role model</span>
@@ -151,7 +151,7 @@ and no shared Academy Drive anywhere in this codebase.`}
                 <ol className="list-decimal list-inside space-y-1">
                   <li>Student clicks "Connect Google Drive" → <code>GET /api/drive/connect</code></li>
                   <li>Server issues a signed state, redirects to Google with <code>scope=drive.file</code>, <code>access_type=offline</code>, <code>prompt=consent</code></li>
-                  <li><code>GET /api/drive/oauth2callback</code>: session + state validated, code exchanged, identity from id_token</li>
+                  <li><code>GET /api/drive/oauth2callback</code>: session + state validated, code exchanged, identity verified using Google-signed id_token</li>
                   <li>Refresh + access tokens encrypted (AES-256-GCM) and stored in <code>oauth_accounts</code></li>
                   <li><code>RAGHVYON Academy</code> folder + 5 subfolders are created in the student's own Drive via the Drive API</li>
                   <li>Folder IDs saved to <code>drive_connections</code> for that user only</li>

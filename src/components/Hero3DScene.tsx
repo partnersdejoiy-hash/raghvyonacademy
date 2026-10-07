@@ -44,7 +44,9 @@ export const Hero3DScene: React.FC = () => {
     for (let i = 0; i < points.length; i++) points[i] = (Math.random() - .5) * 11;
     const geometry = new THREE.BufferGeometry(); geometry.setAttribute('position', new THREE.BufferAttribute(points, 3));
     const stars = new THREE.Points(geometry, new THREE.PointsMaterial({ color: 0xabc4ff, size: .035, transparent: true, opacity: .65 })); scene.add(stars);
-    let pointerX = 0, pointerY = 0;
+    let pointerX = 0, pointerY = 0, scrollProgress = 0;
+    const onScroll = () => { const stage=host.closest('.cinematic-journey') as HTMLElement|null; if(stage) scrollProgress=Math.max(0,Math.min(1,-stage.getBoundingClientRect().top/(stage.offsetHeight-innerHeight))); };
+    addEventListener('scroll',onScroll,{passive:true});
     const move = (e: PointerEvent) => { const rect = host.getBoundingClientRect(); pointerX = ((e.clientX - rect.left) / rect.width - .5) * .8; pointerY = ((e.clientY - rect.top) / rect.height - .5) * .4; };
     const leave = () => { pointerX = pointerY = 0; };
     host.addEventListener('pointermove', move); host.addEventListener('pointerleave', leave);
@@ -57,7 +59,11 @@ export const Hero3DScene: React.FC = () => {
       const delta = Math.min((now - previous) / 1000, .05); previous = now;
       if (!visible || document.hidden) return;
       if (!motion.matches && !pauseRef.current) {
-        time += delta; center.rotation.y = time * .3; center.rotation.x = time * .15;
+        time += delta;
+        camera.position.z += ((10 - scrollProgress * 2.5) - camera.position.z) * .035;
+        universe.position.x += ((scrollProgress < .5 ? scrollProgress * .6 : (.5-scrollProgress) * .6) - universe.position.x) * .04;
+        universe.rotation.z += (scrollProgress * .6 - universe.rotation.z) * .04;
+        center.rotation.y = time * .3; center.rotation.x = time * .15;
         rings.forEach((ring, i) => { ring.rotation.z = time * (.25 + i * .1); });
         books.forEach((book, i) => { book.position.y = (i === 1 ? 1.7 : -1.8) + Math.sin(time + i) * .18; book.rotation.y += delta * .12; });
         universe.rotation.y += (pointerX - universe.rotation.y) * .04;
@@ -65,7 +71,7 @@ export const Hero3DScene: React.FC = () => {
       }
       renderer.render(scene, camera);
     }; frame = requestAnimationFrame(draw);
-    return () => { cancelAnimationFrame(frame); resize.disconnect(); observer.disconnect(); host.removeEventListener('pointermove', move); host.removeEventListener('pointerleave', leave); scene.traverse(object => { if (object instanceof THREE.Mesh || object instanceof THREE.Points) { object.geometry.dispose(); const materials = Array.isArray(object.material) ? object.material : [object.material]; materials.forEach(m => m.dispose()); } }); renderer.dispose(); renderer.domElement.remove(); };
+    return () => { cancelAnimationFrame(frame); removeEventListener('scroll',onScroll); resize.disconnect(); observer.disconnect(); host.removeEventListener('pointermove', move); host.removeEventListener('pointerleave', leave); scene.traverse(object => { if (object instanceof THREE.Mesh || object instanceof THREE.Points) { object.geometry.dispose(); const materials = Array.isArray(object.material) ? object.material : [object.material]; materials.forEach(m => m.dispose()); } }); renderer.dispose(); renderer.domElement.remove(); };
   }, []);
   return <div className="cosmos-scene">
     <div className="cosmos-orbit" aria-hidden="true" />

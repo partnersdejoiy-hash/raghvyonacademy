@@ -157,6 +157,21 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 }
 
 export const api = {
+  createAccount: (body:any) => request<any>('/operations/accounts',{method:'POST',body:JSON.stringify(body)}),
+  enrollStudent: (body:any) => request('/operations/enroll',{method:'POST',body:JSON.stringify(body)}),
+  operations: () => request<any>('/operations/overview'),
+  markAttendance: (body: any) => request('/operations/attendance', {method:'POST',body:JSON.stringify(body)}),
+  requestLeave: (body: any) => request('/operations/leaves', {method:'POST',body:JSON.stringify(body)}),
+  reviewLeave: (id:number,status:string) => request(`/operations/leaves/${id}/review`, {method:'POST',body:JSON.stringify({status})}),
+  createInvoice: (body:any) => request('/operations/invoices', {method:'POST',body:JSON.stringify(body)}),
+  assignTeacher: (body:any) => request('/operations/teacher-assignment', {method:'POST',body:JSON.stringify(body)}),
+  linkParent: (body:any) => request('/operations/parent-link', {method:'POST',body:JSON.stringify(body)}),
+  reconcilePayment: (id:number) => request<any>(`/operations/invoices/${id}/reconcile`,{method:'POST'}),
+  paymentOrder: (id:number) => request<any>(`/operations/invoices/${id}/order`, {method:'POST'}),
+  verifyPayment: (body:any) => request('/operations/payments/verify', {method:'POST',body:JSON.stringify(body)}),
+  classroomStatus: () => request<any>('/classroom/status'),
+  classroomCourses: () => request<any>('/classroom/courses'),
+  classroomDisconnect: () => request('/classroom/disconnect',{method:'POST'}),
   config: () => request<{ googleSignIn: boolean; driveOAuth: boolean; gemini: boolean; demoMode: boolean }>('/config'),
   session: () => request<{ user: ApiUser | null; permissions?: string[] }>('/auth/session'),
   authPermissions: () =>

@@ -25,6 +25,7 @@ import {
 } from './components/PortalLoadingFallback';
 import { api, ApiUser, ApiCourse, STATIC_PREVIEW } from './lib/api';
 import { TeacherProfile } from './types';
+import { PortalPreviewSection } from './components/PortalPreviewSection';
 import { AdmissionsSection } from './components/AdmissionsSection';
 import { INITIAL_TEACHER_PROFILE } from './data/initialData';
 
@@ -114,6 +115,8 @@ export default function App() {
   /* --- OAuth return handling (/dashboard?drive=connected|failed) ----- */
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
+    const classroom = params.get('classroom');
+    if (classroom) { showToast(classroom === 'connected' ? 'Google Classroom connected.' : 'Classroom connection failed. Please try again.'); window.history.replaceState({}, '', '/dashboard'); }
     const drive = params.get('drive');
     if (drive) {
       if (drive === 'connected') showToast('Google Drive connected! Your learning folder is ready in your own Drive.');
@@ -232,6 +235,7 @@ export default function App() {
               onOpenLogin={() => setIsLoginModalOpen(true)}
               onExploreCourses={() => handleNavigate('home', 'courses')}
             />
+            <PortalPreviewSection onOpenLogin={() => setIsLoginModalOpen(true)} />
             <TrustTeacherSection
               teacherProfile={teacherProfile}
               onOpenEnquiry={() => handleOpenEnquiryWithCourse()}
@@ -267,13 +271,13 @@ export default function App() {
                     </div>
                     <div className="lg:col-span-4 flex flex-col sm:flex-row lg:flex-col gap-3 justify-center">
                       <a
-                        href="https://wa.me/12133960065"
+                        href="https://wa.me/918448736983"
                         target="_blank"
                         rel="noopener noreferrer"
                         className="bg-[#25D366] hover:bg-[#20ba59] text-white font-bold text-sm px-6 py-3.5 rounded-2xl shadow-sm hover:shadow-md transition-all flex items-center justify-center space-x-2 text-center"
                       >
                         <MessageSquare className="w-5 h-5" />
-                        <span>Chat on WhatsApp (+1 213 396-0065)</span>
+                        <span>Chat on WhatsApp (+91 8448736983)</span>
                       </a>
                       <button
                         onClick={() => handleOpenDemoWithCourse()}

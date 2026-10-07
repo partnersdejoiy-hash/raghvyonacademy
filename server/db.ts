@@ -228,6 +228,9 @@ CREATE INDEX IF NOT EXISTS idx_audit_action ON audit_logs(action);
 /* ------------------------------------------------------------------ */
 /* MAPPERS                                                             */
 /* ------------------------------------------------------------------ */
+// Replace the old seeded contact number while preserving custom profile edits.
+db.prepare("UPDATE teacher_profile SET phone='+91 8448736983' WHERE phone='+1 (213) 396-0065'").run();
+
 function courseRowToJson(row: any) {
   return {
     id: String(row.id),
@@ -463,7 +466,12 @@ export function getStudentAcademicData(studentUserId: number) {
       completedLessons: submitted,
       totalLessons: Math.max(asgs.length, 1),
       scoreAvg,
-      attendancePercentage: 100,
+      attendancePercentage: (() => {
+        const hasAttendance = db.prepare("SELECT 1 FROM sqlite_master WHERE name='attendance'").get();
+        if (!hasAttendance) return 0;
+        const records = db.prepare("SELECT status FROM attendance WHERE student_id=? AND course_id=? AND status!='leave'").all(studentUserId, Number(c.id)) as any[];
+        return records.length ? Math.round(records.filter(r => r.status === 'present' || r.status === 'late').length / records.length * 100) : 0;
+      })(),
     };
   });
 

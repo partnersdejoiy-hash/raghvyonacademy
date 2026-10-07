@@ -1,3 +1,4 @@
+import { AcademyOperations } from './AcademyOperations';
 import React, { useState, useEffect } from 'react';
 import {
   ShieldCheck, BookOpen, Users, MessageSquare, Calendar, HardDrive, Plus,
@@ -157,6 +158,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ user, onLogout, 
   return (
     <div className="min-h-screen bg-[#FFF9EE]/40 py-8 px-4 sm:px-6 lg:px-8">
       <div className="max-w-7xl mx-auto space-y-8">
+        <AcademyOperations user={user} />
 
         {/* Header */}
         <div className="bg-white rounded-3xl p-6 sm:p-8 border border-gray-200 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-6">

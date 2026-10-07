@@ -69,16 +69,13 @@ Logout destroys the session and clears `raghvyon.sid`.
 
 ## Production limits that still need attention
 
-1. `express-session` currently uses its default MemoryStore. Sessions disappear
-   on restart and are not shared across instances; use a durable production store.
+1. Sessions now use `SqliteSessionStore`. Persist the database disk and deploy a single backend instance; this local SQLite store is not a distributed session service.
 2. The same secret signs sessions and encrypts Drive tokens. Rotating it also
    makes existing encrypted tokens unreadable. Plan token migration or require
    reconnect, and introduce a separately versioned encryption key for rotation.
-3. Drive's ID token payload is decoded locally, not signature/audience/issuer
-   verified. Replace that parsing with `OAuth2Client.verifyIdToken` before treating
-   Drive identity metadata as independently verified.
+3. Drive ID tokens now use `OAuth2Client.verifyIdToken`; identity scopes are requested alongside `drive.file`. Verify the complete Google flow in staging.
 4. Split deployments use SameSite=None. CORS headers alone do not reject requests;
-   add explicit CSRF protection and strict origin enforcement for state changes.
+   write requests now enforce configured origins. Keep APP_URL and FRONTEND_URL accurate.
 5. OAuth has state checks but no PKCE implementation. Rate limits are in memory.
    Scope, revocation and real Google callback behavior require staging verification.
 6. A SQLite database on ephemeral hosting loses accounts, relationships, academic

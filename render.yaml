@@ -25,6 +25,12 @@ services:
       - key: GOOGLE_CLIENT_SECRET
         sync: false
       - key: ADMIN_EMAIL
+        value: deepak.sharma@dejoiy.com
+      - key: ADMIN_PASSWORD
+        sync: false
+      - key: RAZORPAY_KEY_ID
+        sync: false
+      - key: RAZORPAY_KEY_SECRET
         sync: false
       - key: GEMINI_API_KEY
         sync: false

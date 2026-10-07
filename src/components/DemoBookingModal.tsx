@@ -95,13 +95,13 @@ export const DemoBookingModal: React.FC<DemoBookingModalProps> = ({
             <div className="bg-[#FFF9EE] p-4 rounded-2xl border border-[#2454A6]/15 text-xs text-left space-y-2">
               <p className="font-bold text-[#2454A6]">Need immediate confirmation?</p>
               <a
-                href={`https://wa.me/12133960065?text=Hello%20Raghvyon%20Academy,%20I%20just%20booked%20a%20demo%20for%20${encodeURIComponent(studentName)}%20(${encodeURIComponent(subject)})`}
+                href={`https://wa.me/918448736983?text=Hello%20Raghvyon%20Academy,%20I%20just%20booked%20a%20demo%20for%20${encodeURIComponent(studentName)}%20(${encodeURIComponent(subject)})`}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="w-full bg-[#25D366] hover:bg-[#20ba59] text-white font-bold py-2.5 px-4 rounded-xl flex items-center justify-center space-x-2 transition-colors"
               >
                 <MessageSquare className="w-4 h-4" />
-                <span>Message Faculty on WhatsApp (+1 213 396-0065)</span>
+                <span>Message Faculty on WhatsApp (+91 8448736983)</span>
               </a>
             </div>
 

@@ -49,7 +49,7 @@ export function buildAuthUrl(redirectUri: string, state: string): string {
     client_id: process.env.GOOGLE_CLIENT_ID || '',
     redirect_uri: redirectUri,
     response_type: 'code',
-    scope: DRIVE_SCOPE,
+    scope: `openid email profile ${DRIVE_SCOPE}`,
     access_type: 'offline',          // persistent refresh token
     prompt: 'consent',               // guarantee refresh token issuance
     include_granted_scopes: 'false',
@@ -83,13 +83,6 @@ async function exchangeCodeForTokens(code: string, redirectUri: string): Promise
     throw new Error(`Google token exchange failed (${res.status}): ${body.slice(0, 300)}`);
   }
   return res.json();
-}
-
-/** Decode the JWT id_token payload locally to read sub/email (Drive flow). */
-function decodeIdTokenPayload(idToken: string): { sub: string; email?: string; picture?: string } {
-  const payloadB64 = idToken.split('.')[1];
-  const json = Buffer.from(payloadB64, 'base64url').toString('utf8');
-  return JSON.parse(json);
 }
 
 /* ------------------------------------------------------------------ */
@@ -163,7 +156,9 @@ export async function completeDriveConnection(
   if (!tokens.id_token) {
     throw new Error('NO_ID_TOKEN');
   }
-  const identity = decodeIdTokenPayload(tokens.id_token);
+  const ticket = await new OAuth2Client(process.env.GOOGLE_CLIENT_ID).verifyIdToken({ idToken: tokens.id_token, audience: process.env.GOOGLE_CLIENT_ID });
+  const identity = ticket.getPayload();
+  if (!identity?.sub || !identity.email_verified) throw new Error('GOOGLE_IDENTITY_UNVERIFIED');
   if (!identity.sub) throw new Error('NO_IDENTITY');
 
   // Persist encrypted tokens + connection row.

@@ -23,7 +23,7 @@ export const INITIAL_TEACHER_PROFILE: TeacherProfile = {
     'Competitive Exam Foundation'
   ],
   contactEmail: 'contact@raghvyonacademy.com',
-  phone: '+1 (213) 396-0065',
+  phone: '+91 8448736983',
   address: 'House no: J-393, Dakshinpuri, New Delhi-110062'
 };
 
