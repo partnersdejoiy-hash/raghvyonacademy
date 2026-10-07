@@ -125,3 +125,15 @@ Here the SQLite file is persistent — full data durability at $0.
 - `GOOGLE_CLIENT_SECRET` rotated after any accidental exposure.
 - `ADMIN_EMAIL` set to the owner's Gmail only.
 - Never commit `.env` / `.env.local`.
+
+For the code-level authentication flow and remaining production limitations, see [AUTHENTICATION.md](AUTHENTICATION.md). Secret rotation also affects stored Drive token decryption; plan a reconnect or migration.
+
+## GitHub Pages preview
+
+The Pages workflow builds the frontend with `/raghvyonacademy/` as its base
+and `VITE_STATIC_PREVIEW=true`. Public courses and the teacher profile use the
+repository catalogue. A banner identifies the preview; login, AI, Drive and
+form submissions do not claim success or contact an absent backend. No session
+or server secrets are bundled. The full Express deployment remains separate.
+
+In repository Settings → Pages, choose GitHub Actions as the source before the first deployment. Pushes to main deploy the preview.
