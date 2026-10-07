@@ -23,7 +23,7 @@ import {
 import {
   PortalLoadingFallback
 } from './components/PortalLoadingFallback';
-import { api, ApiUser, ApiCourse } from './lib/api';
+import { api, ApiUser, ApiCourse, STATIC_PREVIEW } from './lib/api';
 import { TeacherProfile } from './types';
 import { AdmissionsSection } from './components/AdmissionsSection';
 import { INITIAL_TEACHER_PROFILE } from './data/initialData';
@@ -202,6 +202,7 @@ export default function App() {
 
   return (
     <div className="min-h-screen flex flex-col bg-[#FFF9EE] text-[#172B4D] selection:bg-[#35B8A6] selection:text-white font-sans antialiased">
+      {STATIC_PREVIEW && <div className="bg-[#172B4D] text-white px-4 py-3 text-center text-xs sm:text-sm" role="status">Website preview · Explore our courses and teaching approach. Login and form submissions need the Academy backend.</div>}
       {/* Toast */}
       {toastMessage && (
         <div className="fixed bottom-6 right-6 z-50 bg-[#172B4D] text-white px-5 py-3.5 rounded-2xl shadow-xl flex items-center space-x-3 border border-[#35B8A6]/40 animate-in fade-in slide-in-from-bottom-5 duration-200 max-w-sm" role="status">

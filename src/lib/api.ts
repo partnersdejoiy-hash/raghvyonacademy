@@ -1,3 +1,6 @@
+import { INITIAL_COURSES, INITIAL_TEACHER_PROFILE } from '../data/initialData';
+export const STATIC_PREVIEW = import.meta.env.VITE_STATIC_PREVIEW === 'true';
+
 /**
  * Typed API client. All auth state lives in httpOnly session cookies —
  * the browser never sees tokens, and role is always decided by the server.
@@ -129,6 +132,16 @@ export interface ParentChildData {
 }
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
+  if (STATIC_PREVIEW) {
+    const publicData: Record<string, unknown> = {
+      '/config': { googleSignIn: false, driveOAuth: false, gemini: false, demoMode: false },
+      '/courses': { courses: INITIAL_COURSES },
+      '/teacher-profile': { teacherProfile: INITIAL_TEACHER_PROFILE },
+      '/auth/session': { user: null, permissions: [] },
+    };
+    if (path in publicData) return publicData[path] as T;
+    throw new Error('This is a website preview. Login, bookings and enquiries will be available when the Academy backend is connected. Please contact the Academy on WhatsApp.');
+  }
   const res = await fetch(apiUrl(path), {
     credentials: 'include',
     headers: init?.body ? { 'Content-Type': 'application/json' } : undefined,
