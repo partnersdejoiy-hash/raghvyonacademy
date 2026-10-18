@@ -199,6 +199,7 @@ html { scrollbar-color: var(--navy-3) var(--night); scroll-behavior: smooth; }
 .about { background: var(--peach); padding: 20px; }
 .about__panel { --ground: var(--night); position: relative; min-height: 110svh; background: var(--night); color: var(--paper); overflow: hidden; display: grid; grid-template-columns: minmax(0, 63fr) minmax(0, 37fr); }
 .about__left { padding: 56px; }
+.about__left h2 { font-size: clamp(2rem, 1rem + 3vw, 4rem); max-width: 12ch; }
 .about__left .motif { --gap: 8px; margin-top: 56px; width: 38vw; aspect-ratio: 5 / 6; margin-bottom: -8vw; }
 .about__left .motif img { scale: 1.08; animation: drift 24s ease-in-out infinite alternate; }
 .about__right { padding: 56px 56px 56px 0; display: grid; align-content: start; gap: 64px; max-width: 360px; }
