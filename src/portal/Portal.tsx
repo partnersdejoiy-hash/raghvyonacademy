@@ -8,8 +8,10 @@ import { Mark, Wordmark } from '../ui/Mark';
 type Role = 'student' | 'parent' | 'teacher' | 'admin';
 type User = { id: number; email: string; name: string; role: Role; avatar_url: string | null };
 type Child = { id: number; name: string; email: string; avatar_url: string | null; connected: boolean };
-type Perm = 'classroom.view' | 'classroom.manage' | 'calendar.view' | 'calendar.manage' | 'academy.enroll' | 'tools.gmail' | 'desk.demos' | 'desk.people';
-type Me = { user: User; perms: Perm[]; superAdmin: boolean; courseIds: number[]; classroom: { connected: boolean; as: 'student' | 'teacher' }; children: Child[] };
+type Perm = 'classroom.view' | 'classroom.manage' | 'calendar.view' | 'calendar.manage' | 'academy.enroll' | 'tools.gmail' | 'attendance.view' | 'attendance.mark' | 'leave.apply' | 'leave.approve' | 'leave.view' | 'desk.demos' | 'desk.people';
+type AttStatus = 'present' | 'absent' | 'late' | 'leave';
+type Leave = { id: number; student_user_id: number; student_name: string; student_email: string; start_date: string; end_date: string; reason: string; course_name: string | null; status: 'pending' | 'approved' | 'rejected' | 'cancelled'; parent_note: string | null; decided_by_name: string | null; decided_at: string | null; created_at: string };
+type Me = { user: User; parents: { id: number; name: string; email: string }[]; perms: Perm[]; superAdmin: boolean; courseIds: number[]; classroom: { connected: boolean; as: 'student' | 'teacher' }; children: Child[] };
 type CalEvent = { id: string; title: string; description: string; start: string; end: string; allDay: boolean; meet: string | null; link: string; organizer: string; attendees: number };
 type GCourse = { id: string; name: string; section?: string; descriptionHeading?: string; alternateLink: string };
 type Work = { id: string; title: string; description: string; due: string | null; maxPoints: number | null; link: string; type: string; submission?: { state: string; late: boolean; grade: number | null; link: string } | null; counts?: { total: number; turnedIn: number; graded: number } };
@@ -49,6 +51,8 @@ const I = {
   out: 'M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4m7 14 5-5-5-5m5 5H9',
   ext: 'M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6m4-3h6v6m-11 5L21 3',
   cal: 'M8 2v4m8-4v4M3 10h18M5 4h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z',
+  check: 'M9 11l3 3L22 4M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11',
+  leave: 'M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8zM14 2v6h6M9 15l2 2 4-4',
   lock: 'M5 11h14a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2zm2 0V7a5 5 0 0 1 10 0v4',
 };
 
@@ -608,12 +612,277 @@ function Permissions({ me }: { me: Me }) {
   );
 }
 
+/* ---------- attendance ---------- */
+const ATT: Record<AttStatus, { label: string; short: string; cls: string }> = {
+  present: { label: 'Present', short: 'P', cls: 'att--present' },
+  late: { label: 'Late', short: 'L', cls: 'att--late' },
+  absent: { label: 'Absent', short: 'A', cls: 'att--absent' },
+  leave: { label: 'Leave', short: 'LV', cls: 'att--leave' },
+};
+const pct = (n: number, d: number) => (d ? Math.round((n / d) * 100) : 0);
+const todayIST = () => new Date(Date.now() + 5.5 * 3600 * 1000).toISOString().slice(0, 10);
+const shiftMonth = (m: string, by: number) => { const [y, mo] = m.split('-').map(Number); const d = new Date(Date.UTC(y, mo - 1 + by, 1)); return d.toISOString().slice(0, 7); };
+const fmtRange = (a: string, b: string) => (a === b ? fmtDate(a, { day: 'numeric', month: 'short', year: 'numeric' }) : `${fmtDate(a)} – ${fmtDate(b, { day: 'numeric', month: 'short', year: 'numeric' })}`);
+
+type MyAtt = { student: { id: number; name: string }; month: string; records: { date: string; status: AttStatus; course_name: string }[]; leaves: { id: number; start_date: string; end_date: string; status: string; reason: string }[]; overall: { total: number; present: number; absent: number; late: number; leave: number } };
+
+function AttendanceView({ me }: { me: Me }) {
+  const [child, setChild] = useState<Child | null>(me.children[0] || null);
+  const [month, setMonth] = useState(todayIST().slice(0, 7));
+  const [d, setD] = useState<MyAtt | null>(null);
+  const [err, setErr] = useState('');
+  const isParent = me.user.role === 'parent';
+  useEffect(() => {
+    if (isParent && !child) return;
+    setD(null); setErr('');
+    api<MyAtt>(`/api/attendance/me?month=${month}${isParent ? `&student=${child!.id}` : ''}`).then(setD).catch((e) => setErr(e.message));
+  }, [month, child, isParent]);
+
+  const [y, mo] = month.split('-').map(Number);
+  const first = new Date(Date.UTC(y, mo - 1, 1));
+  const daysIn = new Date(Date.UTC(y, mo, 0)).getUTCDate();
+  const lead = (first.getUTCDay() + 6) % 7; // Monday first
+  const byDay = new Map<string, AttStatus[]>();
+  for (const r of d?.records || []) byDay.set(r.date, [...(byDay.get(r.date) || []), r.status]);
+  const leaveDay = (iso: string) => d?.leaves.find((l) => l.start_date <= iso && l.end_date >= iso);
+  const worst = (list: AttStatus[]): AttStatus => (list.includes('absent') ? 'absent' : list.includes('late') ? 'late' : list.includes('leave') ? 'leave' : 'present');
+  const mRec = d?.records || [];
+  const mCount = (s: AttStatus) => mRec.filter((r) => r.status === s).length;
+  const o = d?.overall;
+  const attended = o ? (o.present || 0) + (o.late || 0) : 0;
+
+  return (
+    <>
+      <div className="pagehead">
+        <div><h1 className="display">Attendance</h1><p>{isParent ? (child ? `${child.name.split(' ')[0]}'s attendance across all classes.` : 'No student is linked to you yet.') : 'Your attendance across all classes.'}</p></div>
+        <div className="monthnav glass"><button aria-label="Previous month" onClick={() => setMonth(shiftMonth(month, -1))}>‹</button><span>{first.toLocaleDateString('en-IN', { month: 'long', year: 'numeric', timeZone: 'UTC' })}</span><button aria-label="Next month" disabled={month >= todayIST().slice(0, 7)} onClick={() => setMonth(shiftMonth(month, 1))}>›</button></div>
+      </div>
+      {isParent && me.children.length > 1 && <div className="chips">{me.children.map((c) => <button key={c.id} className="chip" aria-pressed={child?.id === c.id} onClick={() => setChild(c)}>{c.name}</button>)}</div>}
+      {isParent && me.children.length === 0 && <Empty><p>Ask the academy to link your child to this account.</p></Empty>}
+      {err && <p className="msg msg--err">{err}</p>}
+      {d && (
+        <>
+          <div className="stats4">
+            <div className="tile glass"><span>Overall attendance</span><strong className={pct(attended, o?.total || 0) >= 75 || !o?.total ? 'accent' : 'warn'}>{o?.total ? `${pct(attended, o.total)}%` : '—'}</strong><small>{o?.total ? `${attended} of ${o.total} classes` : 'No classes marked yet'}</small></div>
+            <div className="tile glass"><span>Present this month</span><strong>{mCount('present')}</strong><small>{mCount('late')} late</small></div>
+            <div className="tile glass"><span>Absent this month</span><strong className={mCount('absent') ? 'warn' : ''}>{mCount('absent')}</strong><small>without leave</small></div>
+            <div className="tile glass"><span>On leave this month</span><strong>{mCount('leave')}</strong><small>{d.leaves.filter((l) => l.status === 'pending').length} request(s) pending</small></div>
+          </div>
+          <div className="panel glass">
+            <div className="cal">
+              {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((w) => <b key={w}>{w}</b>)}
+              {Array.from({ length: lead }, (_, i) => <i key={`x${i}`} />)}
+              {Array.from({ length: daysIn }, (_, i) => {
+                const iso = `${month}-${String(i + 1).padStart(2, '0')}`;
+                const list = byDay.get(iso);
+                const lv = leaveDay(iso);
+                const st = list ? worst(list) : lv?.status === 'approved' ? 'leave' : null;
+                const title = list ? d.records.filter((r) => r.date === iso).map((r) => `${r.course_name || 'Class'}: ${ATT[r.status].label}`).join('\n') : lv ? `Leave ${lv.status}: ${lv.reason}` : '';
+                return (
+                  <span key={iso} className={`day ${st ? ATT[st].cls : ''} ${lv?.status === 'pending' ? 'day--pending' : ''} ${iso === todayIST() ? 'day--today' : ''}`} title={title}>
+                    <em>{i + 1}</em>{list && list.length > 1 && <small>{list.length}</small>}
+                  </span>
+                );
+              })}
+            </div>
+            <div className="legend">{(Object.keys(ATT) as AttStatus[]).map((k) => <span key={k}><i className={ATT[k].cls} />{ATT[k].label}</span>)}<span><i className="day--pending" />Leave pending</span></div>
+          </div>
+          {mRec.length > 0 && (
+            <div className="panel glass">
+              <h2>By class this month</h2>
+              <ul className="bars">
+                {[...new Set(mRec.map((r) => r.course_name || 'Class'))].map((c) => {
+                  const rs = mRec.filter((r) => (r.course_name || 'Class') === c);
+                  const a = rs.filter((r) => r.status === 'present' || r.status === 'late').length;
+                  return <li key={c}><span>{c}</span><div className="bar"><i style={{ width: `${pct(a, rs.length)}%` }} /></div><b>{pct(a, rs.length)}%</b></li>;
+                })}
+              </ul>
+            </div>
+          )}
+        </>
+      )}
+    </>
+  );
+}
+
+type CourseAtt = { date: string; students: { id: string; name: string; email: string; photo: string | null }[]; marks: Record<string, AttStatus>; leaves: Record<string, { status: string; reason: string }> };
+type Summary = { from: string; to: string; students: { email: string; name: string; total: number; present: number; absent: number; late: number; leave: number }[]; days: { date: string; present: number; total: number }[] };
+
+function MarkAttendance({ me }: { me: Me }) {
+  const cr = useClassroom();
+  const [sel, setSel] = useState<GCourse | null>(null);
+  const [date, setDate] = useState(todayIST());
+  const [d, setD] = useState<CourseAtt | null>(null);
+  const [marks, setMarks] = useState<Record<string, AttStatus>>({});
+  const [sum, setSum] = useState<Summary | null>(null);
+  const [msg, setMsg] = useState(''); const [busy, setBusy] = useState(false);
+  useEffect(() => { if (cr.courses?.length && !sel) setSel(cr.courses[0]); }, [cr.courses, sel]);
+  const load = useCallback(() => {
+    if (!sel) return;
+    setD(null); setMsg('');
+    api<CourseAtt>(`/api/attendance/course/${sel.id}?date=${date}`).then((x) => {
+      setD(x);
+      // Approved leave pre-fills "leave"; everything unmarked starts as present.
+      setMarks(Object.fromEntries(x.students.map((s) => [s.email, x.marks[s.email] || (x.leaves[s.email]?.status === 'approved' ? 'leave' : 'present')])));
+    }).catch((e) => setMsg(e.message));
+    api<Summary>(`/api/attendance/course/${sel.id}/summary`).then(setSum).catch(() => setSum(null));
+  }, [sel, date]);
+  useEffect(load, [load]);
+  const needsConnect = !me.classroom.connected || cr.err?.status === 428;
+  async function save() {
+    if (!sel || !d) return;
+    setBusy(true); setMsg('');
+    try {
+      const r = await post<{ saved: number }>(`/api/attendance/course/${sel.id}`, { date, course_name: sel.name, marks: d.students.filter((s) => s.email).map((s) => ({ email: s.email, name: s.name, status: marks[s.email] })) }, 'PUT');
+      setMsg(`Saved attendance for ${r.saved} students on ${fmtDate(date, { day: 'numeric', month: 'short' })}.`);
+      api<Summary>(`/api/attendance/course/${sel.id}/summary`).then(setSum).catch(() => {});
+    } catch (e) { setMsg(e instanceof Error ? e.message : 'Could not save'); }
+    setBusy(false);
+  }
+  const count = (s: AttStatus) => Object.values(marks).filter((m) => m === s).length;
+  const maxDay = Math.max(1, ...(sum?.days.map((x) => x.total) || [1]));
+  return (
+    <>
+      <div className="pagehead"><div><h1 className="display">Mark attendance</h1><p>Pick a class and a date. Approved leaves are filled in for you.</p></div></div>
+      {needsConnect && <Banner title="Connect Google Classroom" text="The class roster comes from Classroom." cta="Connect Classroom" href={connectUrl('teacher')} />}
+      {!needsConnect && <CourseList cr={cr} selected={sel} onSelect={setSel} />}
+      {sel && !needsConnect && (
+        <div className="panel glass">
+          <div className="panel__head">
+            <div><h2>{sel.name}</h2><p className="tiny">{d ? `${d.students.length} students · ${count('present')} present · ${count('late')} late · ${count('absent')} absent · ${count('leave')} on leave` : 'Loading roster…'}</p></div>
+            <div className="actions">
+              <input className="input" type="date" value={date} max={todayIST()} onChange={(e) => setDate(e.target.value)} aria-label="Date" style={{ minHeight: 40, width: 'auto' }} />
+              <button className="btn btn--ghost btn--sm" onClick={() => d && setMarks(Object.fromEntries(d.students.map((s) => [s.email, d.leaves[s.email]?.status === 'approved' ? 'leave' : 'present'])))}>All present</button>
+            </div>
+          </div>
+          {d && d.students.length === 0 && <p className="muted">No students in this class yet. Invite them from Teaching.</p>}
+          {d && d.students.length > 0 && (
+            <ul className="roll">
+              {d.students.map((s) => (
+                <li key={s.id}>
+                  <div className="person"><Ava src={s.photo} name={s.name} size={32} /><div>{s.name}<small>{s.email || 'email hidden by Classroom'}{d.leaves[s.email] && <> · <span className={d.leaves[s.email].status === 'approved' ? 'accent' : 'warn'}>leave {d.leaves[s.email].status}</span></>}</small></div></div>
+                  <div className="seg" role="radiogroup" aria-label={`Attendance for ${s.name}`}>
+                    {(Object.keys(ATT) as AttStatus[]).map((k) => <button key={k} role="radio" aria-checked={marks[s.email] === k} className={marks[s.email] === k ? ATT[k].cls : ''} disabled={!s.email} onClick={() => setMarks({ ...marks, [s.email]: k })} title={ATT[k].label}>{ATT[k].short}</button>)}
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+          {msg && <p className={`msg ${msg.startsWith('Saved') ? 'msg--ok' : 'msg--err'}`} role="status">{msg}</p>}
+          {d && d.students.length > 0 && <button className="btn" disabled={busy} onClick={save}>{busy ? 'Saving…' : 'Save attendance'}</button>}
+        </div>
+      )}
+      {sel && sum && sum.students.length > 0 && (
+        <div className="panel glass">
+          <h2>Last 30 days</h2>
+          <div className="spark" aria-label="Attendance per class day">
+            {sum.days.map((x) => <span key={x.date} title={`${fmtDate(x.date)}: ${x.present}/${x.total}`}><i style={{ height: `${(x.total / maxDay) * 100}%` }}><b style={{ height: `${pct(x.present, x.total)}%` }} /></i></span>)}
+          </div>
+          <ul className="bars">
+            {sum.students.map((st) => { const a = (st.present || 0) + (st.late || 0); const p = pct(a, st.total); return <li key={st.email}><span>{st.name || st.email}</span><div className="bar"><i className={p < 75 ? 'low' : ''} style={{ width: `${p}%` }} /></div><b>{p}%</b></li>; })}
+          </ul>
+          <p className="tiny">Bars turn amber below 75%.</p>
+        </div>
+      )}
+    </>
+  );
+}
+
+/* ---------- leaves ---------- */
+const LeaveChip = ({ s }: { s: Leave['status'] }) => <span className={`chip ${s === 'approved' ? 'chip--ok' : s === 'rejected' ? 'chip--danger' : s === 'pending' ? 'chip--warn' : ''}`}>{s === 'pending' ? 'Waiting for parent' : s[0].toUpperCase() + s.slice(1)}</span>;
+
+function Leaves({ me }: { me: Me }) {
+  const [list, setList] = useState<Leave[] | null>(null);
+  const [err, setErr] = useState(''); const [msg, setMsg] = useState('');
+  const load = useCallback(() => api<Leave[]>('/api/leaves').then(setList).catch((e) => setErr(e.message)), []);
+  useEffect(() => void load(), [load]);
+  const isStudent = can(me, 'leave.apply') && me.user.role === 'student';
+  const isParent = me.user.role === 'parent' && can(me, 'leave.approve');
+  const [rejecting, setRejecting] = useState<number | null>(null);
+  const [note, setNote] = useState('');
+  const decide = async (l: Leave, decision: 'approved' | 'rejected' | 'cancelled') => {
+    try { await post(`/api/leaves/${l.id}`, { decision, note: decision === 'rejected' ? note : '' }, 'PATCH'); setMsg(decision === 'cancelled' ? 'Request cancelled.' : `Leave ${decision}.`); setRejecting(null); setNote(''); load(); } catch (e) { setMsg(e instanceof Error ? e.message : 'Could not update'); }
+  };
+  const pending = (list || []).filter((l) => l.status === 'pending');
+  const rest = (list || []).filter((l) => l.status !== 'pending');
+  return (
+    <>
+      <div className="pagehead"><div><h1 className="display">Leave</h1><p>{isStudent ? 'Apply for leave. Your parent approves it, then your teachers see it.' : isParent ? 'Approve or reject leave your child has asked for.' : 'Approved and pending leave across all students.'}</p></div></div>
+      {msg && <p className="msg msg--ok" role="status">{msg}</p>}
+      {err && <p className="msg msg--err">{err}</p>}
+      {isStudent && <ApplyLeave me={me} onDone={(m) => { setMsg(m); load(); }} />}
+      {!list && !err && <p className="muted">Loading…</p>}
+      {list && list.length === 0 && <Empty><p>{isParent ? 'No leave requests from your children yet.' : 'No leave requests yet.'}</p></Empty>}
+      {pending.length > 0 && (
+        <div className="panel glass">
+          <h2>{isParent ? 'Waiting for your decision' : 'Pending'} ({pending.length})</h2>
+          <ul className="work">{pending.map((l) => (
+            <li key={l.id}>
+              <div><strong>{!isStudent && `${l.student_name} · `}{fmtRange(l.start_date, l.end_date)}</strong><small>{l.reason}{l.course_name ? ` · ${l.course_name}` : ' · all classes'}</small></div>
+              <div className="actions">
+                {isParent && rejecting !== l.id && <><button className="btn btn--sm" onClick={() => decide(l, 'approved')}>Approve</button><button className="btn btn--danger btn--sm" onClick={() => { setRejecting(l.id); setNote(''); }}>Reject</button></>}
+                {isParent && rejecting === l.id && <div className="inline"><input className="input" value={note} onChange={(e) => setNote(e.target.value)} placeholder="Reason (optional)" maxLength={300} style={{ minHeight: 40 }} /><button className="btn btn--danger btn--sm" onClick={() => decide(l, 'rejected')}>Reject</button><button className="btn btn--ghost btn--sm" onClick={() => setRejecting(null)}>Back</button></div>}
+                {isStudent && <><LeaveChip s={l.status} /><button className="btn btn--ghost btn--sm" onClick={() => decide(l, 'cancelled')}>Cancel</button></>}
+                {!isParent && !isStudent && <LeaveChip s={l.status} />}
+              </div>
+            </li>
+          ))}</ul>
+        </div>
+      )}
+      {rest.length > 0 && (
+        <div className="panel glass">
+          <h2>{isParent || isStudent ? 'History' : 'Approved'}</h2>
+          <ul className="work">{rest.map((l) => (
+            <li key={l.id}>
+              <div><strong>{!isStudent && `${l.student_name} · `}{fmtRange(l.start_date, l.end_date)}</strong><small>{l.reason}{l.course_name ? ` · ${l.course_name}` : ''}{l.decided_by_name ? ` · ${l.status} by ${l.decided_by_name}` : ''}{l.parent_note ? ` · "${l.parent_note}"` : ''}</small></div>
+              <LeaveChip s={l.status} />
+            </li>
+          ))}</ul>
+        </div>
+      )}
+    </>
+  );
+}
+
+function ApplyLeave({ me, onDone }: { me: Me; onDone: (m: string) => void }) {
+  const [courses, setCourses] = useState<GCourse[]>([]);
+  const [busy, setBusy] = useState(false); const [err, setErr] = useState('');
+  useEffect(() => { if (me.classroom.connected) api<GCourse[]>('/api/classroom/courses').then(setCourses).catch(() => {}); }, [me.classroom.connected]);
+  const noParent = me.parents.length === 0;
+  async function submit(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    const f = e.currentTarget; const data = Object.fromEntries(new FormData(f)) as Record<string, string>;
+    const course = courses.find((c) => c.id === data.course_id);
+    setBusy(true); setErr('');
+    try { await post('/api/leaves', { ...data, course_name: course?.name || '' }); f.reset(); onDone(`Leave requested. ${me.parents.map((p) => p.name.split(' ')[0]).join(' or ')} will approve it.`); }
+    catch (x) { setErr(x instanceof Error ? x.message : 'Could not apply'); }
+    setBusy(false);
+  }
+  return (
+    <form className="panel glass form" onSubmit={submit}>
+      <div className="panel__head"><h2>Apply for leave</h2>{!noParent && can(me, 'tools.gmail') && <a className="btn btn--ghost btn--sm" href={gmail(me.parents.map((p) => p.email), 'Leave request on the Raghvyon portal', 'I have asked for leave on the Raghvyon Academy portal. Please approve it at https://www.raghvyon.co.in/portal')} target="_blank" rel="noreferrer">Tell my parent on Gmail</a>}</div>
+      {noParent && <p className="msg msg--err">Your parent is not linked yet, so nobody can approve leave. Ask the academy to link them.</p>}
+      <div className="row">
+        <label className="field"><span>From</span><input name="start_date" type="date" required defaultValue={todayIST()} /></label>
+        <label className="field"><span>To</span><input name="end_date" type="date" required defaultValue={todayIST()} /></label>
+      </div>
+      <label className="field"><span>Class</span><select name="course_id" defaultValue=""><option value="">All classes</option>{courses.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select></label>
+      <label className="field"><span>Reason</span><textarea name="reason" required minLength={3} maxLength={500} placeholder="Family function in Jaipur, back on Monday." /></label>
+      {err && <p className="msg msg--err" role="alert">{err}</p>}
+      <button className="btn" disabled={busy || noParent}>{busy ? 'Sending…' : 'Send to parent for approval'}</button>
+    </form>
+  );
+}
+
 /* ---------- root ---------- */
 const navFor = (me: Me): NavItem[] => {
   const items: NavItem[] = [];
   if (can(me, 'classroom.view') && me.user.role !== 'teacher' && me.user.role !== 'admin') items.push({ id: 'home', label: me.user.role === 'parent' ? "My child's classes" : 'My classes', icon: I.book });
   if (can(me, 'classroom.manage')) items.push({ id: 'teach', label: 'Teaching', icon: I.book });
   if (can(me, 'calendar.view')) items.push({ id: 'schedule', label: 'Schedule', icon: I.cal });
+  if (can(me, 'attendance.mark')) items.push({ id: 'mark', label: 'Attendance', icon: I.check });
+  else if (can(me, 'attendance.view')) items.push({ id: 'attendance', label: 'Attendance', icon: I.check });
+  if (can(me, 'leave.apply') || can(me, 'leave.approve') || can(me, 'leave.view')) items.push({ id: 'leave', label: 'Leave', icon: I.leave });
   if (can(me, 'desk.demos') || can(me, 'desk.people')) items.unshift({ id: 'desk', label: 'Academy desk', icon: I.inbox });
   if (me.user.role === 'admin') items.push({ id: 'perms', label: 'Permissions', icon: I.lock });
   if (items.length === 0) items.push({ id: 'home', label: 'Home', icon: I.home });
@@ -643,6 +912,9 @@ export default function Portal() {
       {view === 'home' && role !== 'parent' && <StudentHome me={me} reloadMe={load} courses={courses} />}
       {view === 'teach' && <TeacherHome me={me} />}
       {view === 'schedule' && <Schedule me={me} />}
+      {view === 'mark' && <MarkAttendance me={me} />}
+      {view === 'attendance' && <AttendanceView me={me} />}
+      {view === 'leave' && <Leaves me={me} />}
       {view === 'desk' && <AdminDesk me={me} />}
       {view === 'perms' && <Permissions me={me} />}
     </Shell>

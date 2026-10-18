@@ -49,7 +49,12 @@ export const PRIVACY: Doc = {
               it any time at <a href="https://myaccount.google.com/permissions">myaccount.google.com/permissions</a>.
             </li>
             <li>
-              <strong>Portal activity:</strong> the courses you add to your dashboard, and your role (student, parent or admin).
+              <strong>Portal activity:</strong> the courses you add to your dashboard, and your role (student, parent, teacher or admin).
+            </li>
+            <li>
+              <strong>Attendance and leave:</strong> the date, class and status (present, late, absent, on leave) a teacher records for a
+              student, and leave requests with their dates, reason and the parent's decision. Students and their linked parents can see
+              their own records; teachers and the academy see records for their classes.
             </li>
             <li>
               <strong>Technical logs:</strong> our host keeps short-lived request logs (address, time, page) to keep the site secure

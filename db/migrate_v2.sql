@@ -35,3 +35,8 @@ CREATE TABLE IF NOT EXISTS parent_links (
   PRIMARY KEY (parent_user_id, student_user_id)
 );
 CREATE INDEX IF NOT EXISTS idx_links_student ON parent_links(student_user_id);
+
+-- v3: attendance and leave (applied 19 Oct 2026)
+CREATE TABLE IF NOT EXISTS attendance (id INTEGER PRIMARY KEY AUTOINCREMENT, course_id TEXT NOT NULL, course_name TEXT NOT NULL DEFAULT '', student_email TEXT NOT NULL, student_name TEXT NOT NULL DEFAULT '', date TEXT NOT NULL, status TEXT NOT NULL CHECK (status IN ('present','absent','late','leave')), marked_by INTEGER REFERENCES users(id) ON DELETE SET NULL, updated_at TEXT NOT NULL DEFAULT (datetime('now')), UNIQUE (course_id, student_email, date));
+CREATE TABLE IF NOT EXISTS leaves (id INTEGER PRIMARY KEY AUTOINCREMENT, student_user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE, start_date TEXT NOT NULL, end_date TEXT NOT NULL, reason TEXT NOT NULL, course_id TEXT, course_name TEXT, status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending','approved','rejected','cancelled')), decided_by INTEGER REFERENCES users(id) ON DELETE SET NULL, decided_at TEXT, parent_note TEXT, created_at TEXT NOT NULL DEFAULT (datetime('now')));
+CREATE TABLE IF NOT EXISTS role_permissions (role TEXT PRIMARY KEY, perms TEXT NOT NULL DEFAULT '[]', updated_at TEXT NOT NULL DEFAULT (datetime('now')));

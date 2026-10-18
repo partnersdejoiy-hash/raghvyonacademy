@@ -8,15 +8,20 @@ export const PERMISSIONS = [
   { id: 'calendar.manage', label: 'Schedule classes with Google Meet links' },
   { id: 'academy.enroll', label: 'Add or remove academy courses on own dashboard' },
   { id: 'tools.gmail', label: 'Email people from the portal (opens Gmail)' },
+  { id: 'attendance.view', label: 'See attendance (own, or linked child)' },
+  { id: 'attendance.mark', label: 'Mark attendance for classes they teach' },
+  { id: 'leave.apply', label: 'Apply for leave' },
+  { id: 'leave.approve', label: "Approve or reject a linked child's leave" },
+  { id: 'leave.view', label: 'See approved and pending leaves of all students' },
   { id: 'desk.demos', label: 'See and update demo requests' },
   { id: 'desk.people', label: 'Change roles and link parents to students' },
 ] as const;
 export type Perm = (typeof PERMISSIONS)[number]['id'];
 
-const TEACHER: Perm[] = ['classroom.view', 'classroom.manage', 'calendar.view', 'calendar.manage', 'tools.gmail'];
+const TEACHER: Perm[] = ['classroom.view', 'classroom.manage', 'calendar.view', 'calendar.manage', 'tools.gmail', 'attendance.mark', 'leave.view'];
 export const DEFAULTS: Record<Role, Perm[]> = {
-  student: ['classroom.view', 'calendar.view', 'academy.enroll', 'tools.gmail'],
-  parent: ['classroom.view', 'calendar.view', 'tools.gmail'],
+  student: ['classroom.view', 'calendar.view', 'academy.enroll', 'tools.gmail', 'attendance.view', 'leave.apply'],
+  parent: ['classroom.view', 'calendar.view', 'tools.gmail', 'attendance.view', 'leave.approve'],
   teacher: TEACHER,
   admin: [...TEACHER, 'desk.demos', 'desk.people'],
 };

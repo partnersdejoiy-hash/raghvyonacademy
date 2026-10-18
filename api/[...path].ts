@@ -179,7 +179,11 @@ on('GET', '/me', async ({ req }) => {
       : Promise.resolve([]),
   ]);
   const perms = await effectivePerms(user);
+  const parents = user.role === 'student'
+    ? await q<{ id: number; name: string; email: string }>('SELECT u.id,u.name,u.email FROM parent_links l JOIN users u ON u.id=l.parent_user_id WHERE l.student_user_id=?', [user.id])
+    : [];
   return json({
+    parents,
     user,
     perms,
     superAdmin: isSuperAdmin(user),
@@ -347,6 +351,137 @@ on('POST', '/calendar/class', async ({ req }) => {
   if (b.weekly) body.recurrence = [`RRULE:FREQ=WEEKLY;COUNT=${Math.min(Math.max(Number(b.weeks) || 12, 1), 52)}`];
   const e = await calendar<GEvent>(user.id, `calendars/primary/events?conferenceDataVersion=1&sendUpdates=${attendees.length ? 'all' : 'none'}`, { method: 'POST', body });
   return json(eventOut(e), 201);
+});
+
+/* ---------------- attendance ---------------- */
+
+const STATUSES_ATT = ['present', 'absent', 'late', 'leave'] as const;
+const isDate = (d: unknown): d is string => typeof d === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(d) && !Number.isNaN(Date.parse(d));
+const todayIST = () => new Date(Date.now() + 5.5 * 3600 * 1000).toISOString().slice(0, 10);
+
+/** The students this request may see: self, or a linked child for parents. */
+async function attendanceSubject(req: Request, url: URL) {
+  const { user } = await allowed(req, 'attendance.view');
+  if (user.role === 'parent') {
+    const sid = Number(url.searchParams.get('student'));
+    const [child] = await q<{ id: number; email: string; name: string }>(
+      'SELECT u.id,u.email,u.name FROM parent_links l JOIN users u ON u.id=l.student_user_id WHERE l.parent_user_id=? AND l.student_user_id=?', [user.id, sid]);
+    if (!child) throw new HttpError(403, 'Choose one of your linked children');
+    return child;
+  }
+  return { id: user.id, email: user.email, name: user.name };
+}
+
+on('GET', '/attendance/me', async ({ req, url }) => {
+  const s = await attendanceSubject(req, url);
+  const month = /^\d{4}-\d{2}$/.test(url.searchParams.get('month') || '') ? url.searchParams.get('month')! : todayIST().slice(0, 7);
+  const [records, leaves] = await Promise.all([
+    q<{ date: string; status: string; course_name: string }>('SELECT date,status,course_name FROM attendance WHERE student_email=? AND substr(date,1,7)=? ORDER BY date', [s.email.toLowerCase(), month]),
+    q('SELECT id,start_date,end_date,reason,course_name,status FROM leaves WHERE student_user_id=? AND status IN (\'approved\',\'pending\') AND start_date<=? AND end_date>=? ORDER BY start_date', [s.id, `${month}-31`, `${month}-01`]),
+  ]);
+  const [total] = await q<Record<string, number>>(
+    `SELECT COUNT(*) AS total, SUM(status='present') AS present, SUM(status='absent') AS absent, SUM(status='late') AS late, SUM(status='leave') AS leave FROM attendance WHERE student_email=?`, [s.email.toLowerCase()]);
+  return json({ student: { id: s.id, name: s.name }, month, records, leaves, overall: total });
+});
+
+type RosterRow = { id: string; name: string; email: string; photo: string | null };
+on('GET', '/attendance/course/:id', async ({ req, url, params }) => {
+  const { user } = await allowed(req, 'attendance.mark');
+  const date = isDate(url.searchParams.get('date')) ? url.searchParams.get('date')! : todayIST();
+  const roster = await classroom<{ students?: GStudent[] }>(user.id, `courses/${params.id}/students?pageSize=200`);
+  const students: RosterRow[] = (roster.students || []).map((s) => ({ id: s.userId, name: s.profile.name.fullName, email: (s.profile.emailAddress || '').toLowerCase(), photo: s.profile.photoUrl || null }));
+  const emails = students.map((s) => s.email).filter(Boolean);
+  const marks = await q<{ student_email: string; status: string }>('SELECT student_email,status FROM attendance WHERE course_id=? AND date=?', [params.id, date]);
+  const onLeave = emails.length
+    ? await q<{ email: string; status: string; reason: string }>(
+        `SELECT u.email, l.status, l.reason FROM leaves l JOIN users u ON u.id=l.student_user_id
+         WHERE l.status IN ('approved','pending') AND l.start_date<=? AND l.end_date>=? AND (l.course_id IS NULL OR l.course_id=?) AND u.email IN (${emails.map(() => '?').join(',')})`,
+        [date, date, params.id, ...emails])
+    : [];
+  return json({ date, students, marks: Object.fromEntries(marks.map((m) => [m.student_email, m.status])), leaves: Object.fromEntries(onLeave.map((l) => [l.email, { status: l.status, reason: l.reason }])) });
+});
+
+on('PUT', '/attendance/course/:id', async ({ req, params }) => {
+  const { user } = await allowed(req, 'attendance.mark');
+  const b = await readJson<{ date: string; course_name: string; marks: { email: string; name: string; status: string }[] }>(req);
+  if (!isDate(b.date)) throw new HttpError(400, 'Pick a date');
+  if (b.date > todayIST()) throw new HttpError(400, 'You cannot mark attendance for a future date');
+  const marks = (b.marks || []).filter((m) => /^[^@\s]+@[^@\s]+$/.test(m.email || '') && (STATUSES_ATT as readonly string[]).includes(m.status)).slice(0, 300);
+  if (!marks.length) throw new HttpError(400, 'Mark at least one student');
+  // D1 allows 100 bound parameters per statement, so write in chunks of 12 rows (7 params each).
+  for (let i = 0; i < marks.length; i += 12) {
+    const chunk = marks.slice(i, i + 12);
+    await q(
+      `INSERT INTO attendance (course_id,course_name,student_email,student_name,date,status,marked_by) VALUES ${chunk.map(() => '(?,?,?,?,?,?,?)').join(',')}
+       ON CONFLICT(course_id,student_email,date) DO UPDATE SET status=excluded.status, student_name=excluded.student_name, course_name=excluded.course_name, marked_by=excluded.marked_by, updated_at=datetime('now')`,
+      chunk.flatMap((m) => [params.id, (b.course_name || '').slice(0, 120), m.email.toLowerCase(), (m.name || '').slice(0, 120), b.date, m.status, user.id]),
+    );
+  }
+  return json({ ok: true, saved: marks.length });
+});
+
+on('GET', '/attendance/course/:id/summary', async ({ req, url, params }) => {
+  await allowed(req, 'attendance.mark');
+  const to = isDate(url.searchParams.get('to')) ? url.searchParams.get('to')! : todayIST();
+  const from = isDate(url.searchParams.get('from')) ? url.searchParams.get('from')! : new Date(Date.parse(to) - 29 * 86400000).toISOString().slice(0, 10);
+  const rows = await q(
+    `SELECT student_email AS email, MAX(student_name) AS name, COUNT(*) AS total, SUM(status='present') AS present, SUM(status='absent') AS absent, SUM(status='late') AS late, SUM(status='leave') AS leave
+     FROM attendance WHERE course_id=? AND date BETWEEN ? AND ? GROUP BY student_email ORDER BY name`, [params.id, from, to]);
+  const days = await q<{ date: string; present: number; total: number }>(
+    `SELECT date, SUM(status IN ('present','late')) AS present, COUNT(*) AS total FROM attendance WHERE course_id=? AND date BETWEEN ? AND ? GROUP BY date ORDER BY date`, [params.id, from, to]);
+  return json({ from, to, students: rows, days });
+});
+
+/* ---------------- leaves ---------------- */
+
+type LeaveRow = { id: number; student_user_id: number; student_name: string; student_email: string; start_date: string; end_date: string; reason: string; course_name: string | null; status: string; parent_note: string | null; decided_by_name: string | null; decided_at: string | null; created_at: string };
+const LEAVE_SELECT = `SELECT l.id,l.student_user_id,s.name AS student_name,s.email AS student_email,l.start_date,l.end_date,l.reason,l.course_name,l.status,l.parent_note,d.name AS decided_by_name,l.decided_at,l.created_at
+  FROM leaves l JOIN users s ON s.id=l.student_user_id LEFT JOIN users d ON d.id=l.decided_by`;
+
+on('GET', '/leaves', async ({ req }) => {
+  const user = await requireUser(req);
+  const perms = await effectivePerms(user);
+  if (user.role === 'parent' && perms.includes('leave.approve'))
+    return json(await q<LeaveRow>(`${LEAVE_SELECT} WHERE l.student_user_id IN (SELECT student_user_id FROM parent_links WHERE parent_user_id=?) ORDER BY (l.status='pending') DESC, l.start_date DESC LIMIT 200`, [user.id]));
+  if (perms.includes('leave.view'))
+    return json(await q<LeaveRow>(`${LEAVE_SELECT} WHERE l.status IN ('approved','pending') AND l.end_date>=date('now','-30 day') ORDER BY l.start_date LIMIT 300`));
+  if (perms.includes('leave.apply')) return json(await q<LeaveRow>(`${LEAVE_SELECT} WHERE l.student_user_id=? ORDER BY l.created_at DESC LIMIT 100`, [user.id]));
+  throw new HttpError(403, 'Your role does not have access to leaves');
+});
+
+on('POST', '/leaves', async ({ req }) => {
+  const { user } = await allowed(req, 'leave.apply');
+  const b = await readJson<{ start_date: string; end_date: string; reason: string; course_id: string; course_name: string }>(req);
+  if (!isDate(b.start_date) || !isDate(b.end_date)) throw new HttpError(400, 'Pick the start and end dates');
+  if (b.end_date < b.start_date) throw new HttpError(400, 'The end date is before the start date');
+  if ((Date.parse(b.end_date) - Date.parse(b.start_date)) / 86400000 > 30) throw new HttpError(400, 'One request can cover at most 31 days');
+  if (b.start_date < new Date(Date.parse(todayIST()) - 7 * 86400000).toISOString().slice(0, 10)) throw new HttpError(400, 'Leave can be applied at most 7 days after the fact');
+  const reason = (b.reason || '').trim();
+  if (reason.length < 3) throw new HttpError(400, 'Write a short reason');
+  const [parent] = await q('SELECT 1 FROM parent_links WHERE student_user_id=?', [user.id]);
+  if (!parent) throw new HttpError(409, 'Your parent is not linked to your account yet, so nobody can approve this. Ask the academy to link your parent first.');
+  const [row] = await q<{ id: number }>('INSERT INTO leaves (student_user_id,start_date,end_date,reason,course_id,course_name) VALUES (?,?,?,?,?,?) RETURNING id',
+    [user.id, b.start_date, b.end_date, reason.slice(0, 500), b.course_id || null, b.course_id ? (b.course_name || '').slice(0, 120) : null]);
+  return json({ id: row.id }, 201);
+});
+
+on('PATCH', '/leaves/:id', async ({ req, params }) => {
+  const user = await requireUser(req);
+  const id = Number(params.id);
+  const { decision, note } = await readJson<{ decision: string; note: string }>(req);
+  const [leave] = await q<{ student_user_id: number; status: string }>('SELECT student_user_id,status FROM leaves WHERE id=?', [id]);
+  if (!leave) throw new HttpError(404, 'Leave not found');
+  if (decision === 'cancelled') {
+    if (leave.student_user_id !== user.id) throw new HttpError(403, 'Only the student can cancel this request');
+    if (leave.status !== 'pending') throw new HttpError(400, 'Only a pending request can be cancelled');
+  } else if (decision === 'approved' || decision === 'rejected') {
+    await allowed(req, 'leave.approve');
+    const [link] = await q('SELECT 1 FROM parent_links WHERE parent_user_id=? AND student_user_id=?', [user.id, leave.student_user_id]);
+    if (!link) throw new HttpError(403, "Only the student's linked parent can decide this leave");
+    if (leave.status !== 'pending') throw new HttpError(400, 'This request has already been decided');
+  } else throw new HttpError(400, 'Unknown decision');
+  await q(`UPDATE leaves SET status=?, parent_note=?, decided_by=?, decided_at=datetime('now') WHERE id=?`, [decision, (note || '').trim().slice(0, 300) || null, user.id, id]);
+  return json({ ok: true });
 });
 
 /* ---------------- admin ---------------- */
