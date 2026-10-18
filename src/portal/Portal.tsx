@@ -13,8 +13,6 @@ declare global {
   }
 }
 
-const CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID as string | undefined;
-
 async function api<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(path, { ...init, headers: { 'content-type': 'application/json', ...init?.headers } });
   const body = await res.json().catch(() => ({}));
@@ -25,14 +23,18 @@ async function api<T>(path: string, init?: RequestInit): Promise<T> {
 function SignIn({ onUser }: { onUser: (u: User) => void }) {
   const box = useRef<HTMLDivElement>(null);
   const [error, setError] = useState('');
+  const [clientId, setClientId] = useState<string | null | undefined>(undefined);
   useEffect(() => {
-    if (!CLIENT_ID) return;
+    api<{ googleClientId: string | null }>('/api/config').then((c) => setClientId(c.googleClientId)).catch(() => setClientId(null));
+  }, []);
+  useEffect(() => {
+    if (!clientId) return;
     const s = document.createElement('script');
     s.src = 'https://accounts.google.com/gsi/client';
     s.async = true;
     s.onload = () => {
       window.google?.accounts.id.initialize({
-        client_id: CLIENT_ID,
+        client_id: clientId,
         callback: async ({ credential }: { credential: string }) => {
           try {
             setError('');
@@ -48,12 +50,12 @@ function SignIn({ onUser }: { onUser: (u: User) => void }) {
     s.onerror = () => setError('Google sign-in could not load. Check your connection and refresh.');
     document.head.appendChild(s);
     return () => s.remove();
-  }, [onUser]);
+  }, [onUser, clientId]);
   return (
     <section className="pt-signin">
       <h1 className="rv-h">Student and admin login</h1>
       <p>Sign in with the Google account you used for the academy. New students get a dashboard right away.</p>
-      {CLIENT_ID ? <div ref={box} className="pt-gbtn" /> : <p className="pt-err">Google sign-in is not configured yet (VITE_GOOGLE_CLIENT_ID is missing).</p>}
+      {clientId ? <div ref={box} className="pt-gbtn" /> : clientId === null && <p className="pt-err">Google sign-in is not configured yet (GOOGLE_CLIENT_ID is missing).</p>}
       {error && <p className="pt-err" role="alert">{error}</p>}
     </section>
   );
