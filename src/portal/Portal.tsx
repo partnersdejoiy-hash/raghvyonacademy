@@ -222,7 +222,8 @@ function CourseDetail({ course, qs, as, children }: { course: GCourse; qs: strin
 
 function CourseList({ cr, selected, onSelect }: { cr: ReturnType<typeof useClassroom>; selected: GCourse | null; onSelect: (c: GCourse) => void }) {
   if (cr.err?.status === 428) return null;
-  if (cr.err) return <p className="msg msg--err">{cr.err.message}</p>;
+  if (cr.err?.status === 451) return <Empty><p><strong>Classroom is off for this account.</strong><br />{cr.err.message}</p></Empty>;
+  if (cr.err) return <Empty><p className="msg msg--err">{cr.err.message}</p></Empty>;
   if (!cr.courses) return <p className="muted">Loading classes…</p>;
   if (cr.courses.length === 0) return <Empty><p>No active Classroom classes yet.</p></Empty>;
   return (

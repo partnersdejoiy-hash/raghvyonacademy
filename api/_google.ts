@@ -95,6 +95,7 @@ export async function gapi<T = Record<string, unknown>>(userId: number, url: str
     const msg = body.error?.message || res.statusText;
     if (res.status === 403 && /insufficient|scope/i.test(msg)) throw new HttpError(428, 'Google needs more permissions for this. Reconnect Google from your dashboard.');
     if (res.status === 403 && /not been used|is disabled/i.test(msg)) throw new HttpError(502, 'This Google API is not enabled for the project yet.');
+    if (/ClassroomDisabled/i.test(msg)) throw new HttpError(451, 'Google Classroom is turned off for this Google account. If it is a school or company (Workspace) account, ask its admin to switch Classroom on, or sign in with a personal Gmail account.');
     throw new HttpError(res.status === 404 ? 404 : 502, `Google: ${msg}`);
   }
   return body;
