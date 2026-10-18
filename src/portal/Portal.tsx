@@ -119,8 +119,9 @@ function Shell({ me, items, view, setView, onSignOut, children }: { me: Me; item
         <div className="side__bottom"><nav aria-label="More"><a href="/"><Icon d={I.home} />Academy site</a><button onClick={onSignOut}><Icon d={I.out} />Sign out</button></nav></div>
       </aside>
       <div>
-        <header className="topbar"><Wordmark /><nav aria-label="Portal">{nav}</nav><button className="btn btn--ghost btn--sm" onClick={onSignOut}>Sign out</button></header>
+        <header className="topbar"><Wordmark /><div className="topbar__me"><Ava src={me.user.avatar_url} name={me.user.name} size={32} /><button className="btn btn--ghost btn--sm" onClick={onSignOut}>Sign out</button></div></header>
         <main className="main">{children}</main>
+        {items.length > 1 && <nav className="tabbar" aria-label="Portal sections">{nav}</nav>}
       </div>
     </div>
   );
