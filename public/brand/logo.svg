@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" role="img" aria-label="Raghvyon Academy">
+  <!-- (a+b)^2 split at the golden ratio: a² lime, ab periwinkle, ab pink, b² peach -->
+  <rect width="120" height="120" fill="#0c0d12"/>
+  <rect x="22" y="22" width="45" height="45" fill="#d8ff3e"/>
+  <rect x="71" y="22" width="27" height="45" fill="#c3cbe5"/>
+  <rect x="22" y="71" width="45" height="27" fill="#efd3da"/>
+  <rect x="71" y="71" width="27" height="27" fill="#f9cdbd"/>
+</svg>
