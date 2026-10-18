@@ -1,0 +1,32 @@
+/* Portal: Operate mode. Same palette and type as the site, quieter. */
+.pt { min-height: 100svh; }
+.pt-bar { display: flex; justify-content: space-between; align-items: center; gap: 16px; padding: 20px var(--margin); background: var(--night-2); }
+.pt-who { display: flex; align-items: center; gap: 16px; font-size: 15px; color: var(--paper-soft); }
+.pt-main { padding: 64px var(--margin) 96px; max-width: 1280px; margin: 0 auto; }
+.pt-main .rv-h { font-size: clamp(2rem, 1.5rem + 2vw, 3.25rem); }
+.pt-sub { margin: 16px 0 32px; color: var(--paper); max-width: 60ch; }
+.pt-sub a { color: var(--lime); }
+.pt-err { margin-top: 16px; color: #ffb4a8; }
+.pt-dim { color: var(--paper-soft); }
+.pt-signin { max-width: 560px; padding-top: 8vh; }
+.pt-signin > p { margin: 20px 0 32px; }
+.pt-gbtn { min-height: 44px; }
+.btn--ghost { background: var(--night-2); color: var(--paper); min-height: 44px; padding: 0 18px; font-size: 15px; }
+.btn--ghost:hover { background: var(--navy-1); }
+.pt .btn { min-height: 44px; padding: 0 18px; font-size: 15px; }
+.pt-tabs { display: flex; gap: 4px; margin-bottom: 20px; }
+.pt-tabs button { font: inherit; font-size: 16px; font-weight: 500; padding: 12px 18px; border: 0; background: var(--night-2); color: var(--paper); cursor: pointer; }
+.pt-tabs button[aria-selected='true'] { background: var(--lime); color: var(--ink); }
+.pt-scroll { overflow-x: auto; }
+.pt-table { width: 100%; border-collapse: collapse; font-size: 15px; }
+.pt-table th { text-align: left; font-weight: 500; color: var(--paper-soft); padding: 12px 14px; border-bottom: 1px solid var(--navy-1); white-space: nowrap; }
+.pt-table td { padding: 14px; border-bottom: 1px solid var(--night-2); vertical-align: top; }
+.pt-table tr.is-on td { background: var(--night-2); }
+.pt-table td.num { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.pt-table a { color: var(--lime); }
+.pt-note { max-width: 32ch; color: var(--paper-soft); }
+.pt-table select { font: inherit; font-size: 15px; padding: 8px 10px; background: var(--night-2); color: var(--paper); border: 1px solid var(--navy-2); border-radius: 0; }
+@media (max-width: 680px) {
+  .pt-who span { display: none; }
+  .pt-table th:nth-child(3), .pt-table td:nth-child(3) { display: none; }
+}
