@@ -2,7 +2,7 @@
 import crypto from 'node:crypto';
 
 const env = (k: string) => {
-  const v = process.env[k];
+  const v = process.env[k]?.trim(); // pasted dashboard values often carry a trailing space
   if (!v) throw new Error(`Missing env var ${k}`);
   return v;
 };
