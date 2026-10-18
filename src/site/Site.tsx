@@ -457,13 +457,19 @@ export default function Site() {
   }, []);
 
   useEffect(() => {
+    // Reveal on scroll position, not IntersectionObserver: background tabs and fast jumps never strand content hidden.
     document.documentElement.classList.add('js');
-    const io = new IntersectionObserver(
-      (entries) => entries.forEach((e) => e.isIntersecting && (e.target.classList.add('in'), io.unobserve(e.target))),
-      { rootMargin: '0px 0px -12% 0px' },
-    );
-    document.querySelectorAll('[data-reveal]').forEach((el) => io.observe(el));
-    return () => io.disconnect();
+    const check = () =>
+      document.querySelectorAll('[data-reveal]:not(.in)').forEach((el) => {
+        if (el.getBoundingClientRect().top < innerHeight * 0.88) el.classList.add('in');
+      });
+    check();
+    addEventListener('scroll', check, { passive: true });
+    addEventListener('resize', check);
+    return () => {
+      removeEventListener('scroll', check);
+      removeEventListener('resize', check);
+    };
   }, [courses]);
 
   return (
