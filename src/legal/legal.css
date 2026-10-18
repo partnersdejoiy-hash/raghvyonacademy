@@ -16,7 +16,7 @@
 .lg-stage canvas { position: absolute; inset: 0; width: 100%; height: 100%; cursor: grab; touch-action: pan-y; }
 .lg-stage canvas:active { cursor: grabbing; }
 .lg-fallback { position: absolute; inset: 15%; translate: none; width: auto; left: 15%; bottom: 15%; }
-.lg-progress { position: absolute; left: 0; right: 0; bottom: -8px; text-align: center; font-size: var(--step-small); color: var(--paper-soft); font-variant-numeric: tabular-nums; }
+.lg-progress { position: absolute; left: 0; right: 0; bottom: -32px; text-align: center; font-size: var(--step-small); color: var(--paper-soft); font-variant-numeric: tabular-nums; }
 
 .lg-body { display: grid; grid-template-columns: minmax(200px, 3fr) minmax(0, 7fr); gap: clamp(32px, 6vw, 96px); padding: 0 var(--margin) var(--section); background: var(--night); }
 .lg-toc { position: sticky; top: 24px; align-self: start; padding-top: 8px; }

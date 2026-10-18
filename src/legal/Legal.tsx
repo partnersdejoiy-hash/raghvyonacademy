@@ -21,7 +21,7 @@ export default function Legal({ kind }: { kind: 'privacy' | 'terms' }) {
       const atEnd = innerHeight + scrollY >= document.documentElement.scrollHeight - 4;
       const count = atEnd ? els.length : passed.length;
       setRead(count);
-      setActive((passed.at(-1) ?? els[0]).id);
+      setActive((atEnd ? els.at(-1) : passed.at(-1) ?? els[0])!.id);
       cube.current?.setExplode(1.8 * (1 - count / els.length));
     };
     onScroll();
