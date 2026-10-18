@@ -1,0 +1,60 @@
+/* Legal pages: Read mode. Same palette and type as the site; the cube is the one moving thing. */
+.lg { min-height: 100svh; }
+.lg-bar { display: flex; justify-content: space-between; align-items: center; gap: 16px; padding: 20px var(--margin); }
+.lg-mark { display: inline-flex; align-items: center; gap: 10px; font-weight: 600; font-size: 17px; letter-spacing: -0.02em; text-decoration: none; }
+.lg-mark .bullet { color: var(--lime); width: 18px; height: 18px; }
+.lg-bar nav { display: flex; align-items: center; gap: 24px; font-size: 15px; }
+.lg-bar nav a:not(.btn) { text-decoration: none; transition: color 200ms; }
+.lg-bar nav a:not(.btn):hover { color: var(--lime); }
+.lg-bar .btn { min-height: 44px; padding: 0 18px; font-size: 15px; }
+
+.lg-hero { display: grid; grid-template-columns: minmax(0, 7fr) minmax(0, 5fr); gap: 32px; align-items: center; padding: clamp(32px, 6vw, 88px) var(--margin) clamp(48px, 6vw, 96px); }
+.lg-title { font-size: clamp(3rem, 1.6rem + 6vw, 7.5rem); font-weight: 600; letter-spacing: -0.05em; line-height: 0.9; }
+.lg-hero .rv-lead { margin-top: 28px; max-width: 34ch; }
+.lg-date { margin-top: 20px; font-size: var(--step-small); color: var(--paper-soft); }
+.lg-stage { position: relative; aspect-ratio: 1; width: 100%; max-width: 520px; justify-self: end; }
+.lg-stage canvas { position: absolute; inset: 0; width: 100%; height: 100%; cursor: grab; touch-action: pan-y; }
+.lg-stage canvas:active { cursor: grabbing; }
+.lg-fallback { position: absolute; inset: 15%; translate: none; width: auto; left: 15%; bottom: 15%; }
+.lg-progress { position: absolute; left: 0; right: 0; bottom: -8px; text-align: center; font-size: var(--step-small); color: var(--paper-soft); font-variant-numeric: tabular-nums; }
+
+.lg-body { display: grid; grid-template-columns: minmax(200px, 3fr) minmax(0, 7fr); gap: clamp(32px, 6vw, 96px); padding: 0 var(--margin) var(--section); background: var(--night); }
+.lg-toc { position: sticky; top: 24px; align-self: start; padding-top: 8px; }
+.lg-toc ul { display: grid; gap: 2px; }
+.lg-toc a { display: flex; align-items: center; gap: 12px; padding: 10px 12px; font-size: 15px; text-decoration: none; color: var(--paper-soft); transition: color 200ms, background-color 200ms; }
+.lg-toc a .bullet { width: 0.7em; height: 0.7em; color: var(--navy-3); transition: color 200ms; }
+.lg-toc a:hover { color: var(--paper); }
+.lg-toc a[aria-current='true'] { color: var(--paper); background: var(--night-2); }
+.lg-toc a[aria-current='true'] .bullet { color: var(--lime); }
+
+.lg-text { max-width: 68ch; }
+.lg-section { padding: 40px 0; scroll-margin-top: 24px; }
+.lg-section h2 { font-size: clamp(1.75rem, 1.2rem + 1.6vw, 2.5rem); font-weight: 600; letter-spacing: -0.03em; line-height: 1.05; margin-bottom: 18px; }
+.lg-section p, .lg-section li { font-size: 18px; line-height: 1.62; color: var(--paper); }
+.lg-section p + p, .lg-section ul + p { margin-top: 14px; }
+.lg-section ul { display: grid; gap: 12px; margin-top: 12px; }
+.lg-section li { position: relative; padding-left: 26px; }
+.lg-section li::before { content: ''; position: absolute; left: 0; top: 0.62em; width: 10px; height: 10px; background: var(--lime); }
+.lg-section strong { font-weight: 600; }
+.lg-section a, .lg-note a { color: var(--lime); }
+.lg-section code { font-family: inherit; font-weight: 600; background: var(--night-2); padding: 2px 6px; }
+.lg-note { margin-top: 32px; padding: 28px; background: var(--lime); color: var(--ink); font-size: 18px; font-weight: 500; }
+
+.lg-foot { display: flex; justify-content: space-between; align-items: center; gap: 16px; flex-wrap: wrap; padding: 32px var(--margin); background: var(--night-2); font-size: 15px; color: var(--paper-soft); }
+.lg-foot nav { display: flex; gap: 20px; flex-wrap: wrap; }
+.lg-foot a { text-decoration: none; transition: color 200ms; }
+.lg-foot a:hover { color: var(--lime); }
+
+@media (max-width: 900px) {
+  .lg-hero { grid-template-columns: 1fr; }
+  .lg-stage { justify-self: center; max-width: 360px; order: -1; }
+  .lg-body { grid-template-columns: 1fr; }
+  .lg-toc { position: static; }
+  .lg-toc ul { grid-template-columns: 1fr 1fr; }
+}
+@media (max-width: 560px) {
+  .lg-bar nav a:not(.btn) { display: none; }
+  .lg-toc ul { grid-template-columns: 1fr; }
+  .lg-section p, .lg-section li { font-size: 17px; }
+  .lg-section { padding: 28px 0; }
+}

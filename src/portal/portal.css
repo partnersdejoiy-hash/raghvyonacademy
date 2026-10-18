@@ -30,3 +30,4 @@
   .pt-who span { display: none; }
   .pt-table th:nth-child(3), .pt-table td:nth-child(3) { display: none; }
 }
+.pt-signin a { color: var(--lime); }

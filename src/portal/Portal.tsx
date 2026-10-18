@@ -54,7 +54,7 @@ function SignIn({ onUser }: { onUser: (u: User) => void }) {
   return (
     <section className="pt-signin">
       <h1 className="rv-h">Student and admin login</h1>
-      <p>Sign in with the Google account you used for the academy. New students get a dashboard right away.</p>
+      <p>Sign in with the Google account you used for the academy. New students get a dashboard right away. By signing in you agree to our <a href="/terms">terms</a> and <a href="/privacy">privacy policy</a>.</p>
       {clientId ? <div ref={box} className="pt-gbtn" /> : clientId === null && <p className="pt-err">Google sign-in is not configured yet (GOOGLE_CLIENT_ID is missing).</p>}
       {error && <p className="pt-err" role="alert">{error}</p>}
     </section>

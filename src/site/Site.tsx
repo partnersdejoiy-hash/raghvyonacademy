@@ -3,10 +3,10 @@ import './site.css';
 import { CONTACT, FALLBACK_COURSES, FAQ, METHOD, PICTURES, pictureUrl, type Course } from './content';
 import { TERM_COLOURS, hasWebGL } from './cube';
 
-type CubeHandle = { setSizes(a: number, b: number): void; setExplode(v: number): void; dispose(): void };
+export type CubeHandle = { setSizes(a: number, b: number): void; setExplode(v: number): void; dispose(): void };
 
 /** Mount the 3D cube lazily so three.js never blocks the first paint. */
-function useCube(opts: { a: number; b: number; explode: number; drag?: boolean }, onReady?: (c: CubeHandle) => void) {
+export function useCube(opts: { a: number; b: number; explode: number; drag?: boolean }, onReady?: (c: CubeHandle) => void) {
   const ref = useRef<HTMLCanvasElement>(null);
   const [failed, setFailed] = useState(false);
   useEffect(() => {
@@ -31,7 +31,7 @@ function useCube(opts: { a: number; b: number; explode: number; drag?: boolean }
   return { ref, failed };
 }
 
-const Bullet = () => (
+export const Bullet = () => (
   <span className="bullet" aria-hidden="true">
     <i />
     <i />
@@ -428,6 +428,10 @@ function Footer() {
           <a href="#questions">Questions</a>
           <a href="#demo">Book a demo</a>
           <a href="/portal">Student login</a>
+        </nav>
+        <nav aria-label="Legal">
+          <a href="/privacy">Privacy policy</a>
+          <a href="/terms">Terms of service</a>
         </nav>
         <div className="foot__contact">
           <span>{CONTACT.address}</span>
