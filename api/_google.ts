@@ -3,11 +3,12 @@ import { env, q, encrypt, decrypt, HttpError, type Role } from './_lib.js';
 
 const BASE_SCOPES = ['openid', 'email', 'profile'];
 const CLASSROOM = 'https://www.googleapis.com/auth/classroom.';
+const CAL = 'https://www.googleapis.com/auth/calendar.';
 export const SCOPES: Record<'student' | 'teacher', string[]> = {
-  // Students and parents read: their classes, their own work and announcements.
-  student: ['courses.readonly', 'coursework.me.readonly', 'announcements.readonly'].map((s) => CLASSROOM + s),
-  // Teachers manage classes, assignments, rosters and announcements from the portal.
-  teacher: ['courses', 'coursework.students', 'rosters', 'announcements', 'profile.emails'].map((s) => CLASSROOM + s),
+  // Students and parents read: their classes, their own work, announcements and their class schedule.
+  student: [...['courses.readonly', 'coursework.me.readonly', 'announcements.readonly'].map((s) => CLASSROOM + s), CAL + 'events.readonly'],
+  // Teachers manage classes, assignments, rosters, announcements, and schedule classes with Meet links.
+  teacher: [...['courses', 'coursework.students', 'rosters', 'announcements', 'profile.emails'].map((s) => CLASSROOM + s), CAL + 'events'],
 };
 
 export function authUrl(redirectUri: string, state: string, connect?: 'student' | 'teacher') {
@@ -81,10 +82,10 @@ async function accessToken(userId: number) {
   return t.access_token;
 }
 
-/** Call the Classroom API as a user. `path` is relative to /v1. */
-export async function classroom<T = Record<string, unknown>>(userId: number, path: string, init?: { method?: string; body?: unknown }): Promise<T> {
+/** Call a Google API as a user. */
+export async function gapi<T = Record<string, unknown>>(userId: number, url: string, init?: { method?: string; body?: unknown }): Promise<T> {
   const token = await accessToken(userId);
-  const res = await fetch(`https://classroom.googleapis.com/v1/${path}`, {
+  const res = await fetch(url, {
     method: init?.method || 'GET',
     headers: { Authorization: `Bearer ${token}`, ...(init?.body ? { 'content-type': 'application/json' } : {}) },
     body: init?.body ? JSON.stringify(init.body) : undefined,
@@ -92,10 +93,19 @@ export async function classroom<T = Record<string, unknown>>(userId: number, pat
   const body = (await res.json().catch(() => ({}))) as T & { error?: { message?: string; status?: string } };
   if (!res.ok) {
     const msg = body.error?.message || res.statusText;
-    if (res.status === 403 && /insufficient|scope/i.test(msg)) throw new HttpError(428, 'Google Classroom needs more permissions. Reconnect it.');
-    throw new HttpError(res.status === 404 ? 404 : 502, `Classroom: ${msg}`);
+    if (res.status === 403 && /insufficient|scope/i.test(msg)) throw new HttpError(428, 'Google needs more permissions for this. Reconnect Google from your dashboard.');
+    if (res.status === 403 && /not been used|is disabled/i.test(msg)) throw new HttpError(502, 'This Google API is not enabled for the project yet.');
+    throw new HttpError(res.status === 404 ? 404 : 502, `Google: ${msg}`);
   }
   return body;
 }
+
+/** Classroom API; `path` is relative to /v1. */
+export const classroom = <T = Record<string, unknown>>(userId: number, path: string, init?: { method?: string; body?: unknown }) =>
+  gapi<T>(userId, `https://classroom.googleapis.com/v1/${path}`, init);
+
+/** Calendar API; `path` is relative to /calendar/v3. */
+export const calendar = <T = Record<string, unknown>>(userId: number, path: string, init?: { method?: string; body?: unknown }) =>
+  gapi<T>(userId, `https://www.googleapis.com/calendar/v3/${path}`, init);
 
 export const roleToScope = (role: Role): 'student' | 'teacher' => (role === 'teacher' || role === 'admin' ? 'teacher' : 'student');

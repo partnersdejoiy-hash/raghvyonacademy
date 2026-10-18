@@ -8,7 +8,9 @@ import { Mark, Wordmark } from '../ui/Mark';
 type Role = 'student' | 'parent' | 'teacher' | 'admin';
 type User = { id: number; email: string; name: string; role: Role; avatar_url: string | null };
 type Child = { id: number; name: string; email: string; avatar_url: string | null; connected: boolean };
-type Me = { user: User; courseIds: number[]; classroom: { connected: boolean; as: 'student' | 'teacher' }; children: Child[] };
+type Perm = 'classroom.view' | 'classroom.manage' | 'calendar.view' | 'calendar.manage' | 'academy.enroll' | 'tools.gmail' | 'desk.demos' | 'desk.people';
+type Me = { user: User; perms: Perm[]; superAdmin: boolean; courseIds: number[]; classroom: { connected: boolean; as: 'student' | 'teacher' }; children: Child[] };
+type CalEvent = { id: string; title: string; description: string; start: string; end: string; allDay: boolean; meet: string | null; link: string; organizer: string; attendees: number };
 type GCourse = { id: string; name: string; section?: string; descriptionHeading?: string; alternateLink: string };
 type Work = { id: string; title: string; description: string; due: string | null; maxPoints: number | null; link: string; type: string; submission?: { state: string; late: boolean; grade: number | null; link: string } | null; counts?: { total: number; turnedIn: number; graded: number } };
 type Detail = { work: Work[]; announcements: { id: string; text: string; at: string; link: string }[]; students: { id: string; name: string; email: string; photo: string | null }[] };
@@ -28,6 +30,11 @@ const post = <T,>(path: string, body: unknown, method = 'POST') => api<T>(path, 
 const ROLE_LABEL: Record<Role, string> = { student: 'Student', parent: 'Parent', teacher: 'Teacher', admin: 'Admin' };
 const fmtDate = (iso: string | null, opts: Intl.DateTimeFormatOptions = { day: 'numeric', month: 'short' }) => (iso ? new Date(iso).toLocaleDateString('en-IN', opts) : '');
 const connectUrl = (as: 'student' | 'teacher') => `/api/auth/google/start?connect=${as}&next=${encodeURIComponent('/portal')}`;
+/** Opens Gmail's compose window in the user's own account; nothing is sent from our server. */
+const gmail = (to: string | string[], subject = '', body = '') =>
+  `https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent([to].flat().join(','))}&su=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+const fmtTime = (iso: string) => new Date(iso).toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit' });
+const can = (me: Me, p: Perm) => me.perms.includes(p);
 
 const Ava = ({ src, name, size = 40 }: { src: string | null; name: string; size?: number }) =>
   src ? <img src={src} alt="" width={size} height={size} referrerPolicy="no-referrer" /> : <span className="ava">{name.slice(0, 1).toUpperCase()}</span>;
@@ -41,11 +48,24 @@ const I = {
   inbox: 'M22 12h-6l-2 3h-4l-2-3H2M5.5 5h13l3.5 7v6a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2v-6z',
   out: 'M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4m7 14 5-5-5-5m5 5H9',
   ext: 'M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6m4-3h6v6m-11 5L21 3',
+  cal: 'M8 2v4m8-4v4M3 10h18M5 4h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z',
+  lock: 'M5 11h14a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2zm2 0V7a5 5 0 0 1 10 0v4',
 };
 
 /* ---------- sign in ---------- */
-function SignIn() {
+function SignIn({ onDone }: { onDone: () => void }) {
   const error = new URLSearchParams(location.search).get('error');
+  const [mode, setMode] = useState<'in' | 'up'>('in');
+  const [err, setErr] = useState('');
+  const [busy, setBusy] = useState(false);
+  async function submit(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    const data = Object.fromEntries(new FormData(e.currentTarget));
+    setBusy(true); setErr('');
+    try { await post(mode === 'in' ? '/api/auth/login' : '/api/auth/register', data); history.replaceState(null, '', '/portal'); onDone(); }
+    catch (x) { setErr(x instanceof Error ? x.message : 'Could not sign in'); }
+    setBusy(false);
+  }
   return (
     <div className="signin">
       <div className="signin__copy">
@@ -57,7 +77,19 @@ function SignIn() {
           <svg viewBox="0 0 48 48" aria-hidden="true"><path fill="#EA4335" d="M24 9.5c3.5 0 6.6 1.2 9 3.6l6.7-6.7C35.6 2.6 30.2 0 24 0 14.6 0 6.5 5.4 2.6 13.3l7.8 6C12.3 13.6 17.7 9.5 24 9.5z"/><path fill="#4285F4" d="M46.5 24.5c0-1.6-.1-3.1-.4-4.5H24v9h12.7c-.6 3-2.3 5.5-4.8 7.2l7.5 5.8c4.4-4 7.1-10 7.1-17.5z"/><path fill="#FBBC05" d="M10.4 28.7A14.5 14.5 0 0 1 9.5 24c0-1.6.3-3.2.8-4.7l-7.8-6A24 24 0 0 0 0 24c0 3.9.9 7.5 2.6 10.7z"/><path fill="#34A853" d="M24 48c6.5 0 11.9-2.1 15.9-5.8l-7.5-5.8c-2.1 1.4-4.9 2.3-8.4 2.3-6.3 0-11.7-4.1-13.6-9.9l-7.8 6C6.5 42.6 14.6 48 24 48z"/></svg>
           Continue with Google
         </a>
-        <p className="signin__legal">Only your name, email and photo are read at sign-in. Classroom access is asked for separately, when you connect it. See the <a href="/privacy">privacy policy</a> and <a href="/terms">terms</a>.</p>
+        <div className="or"><span>or use email and password</span></div>
+        <form className="pwform" onSubmit={submit}>
+          <div className="tabs glass" role="tablist">
+            <button type="button" role="tab" aria-selected={mode === 'in'} onClick={() => setMode('in')}>Sign in</button>
+            <button type="button" role="tab" aria-selected={mode === 'up'} onClick={() => setMode('up')}>Create account</button>
+          </div>
+          {mode === 'up' && <label className="field"><span>Your name</span><input name="name" required minLength={2} maxLength={80} autoComplete="name" placeholder="Aarav Sharma" /></label>}
+          <label className="field"><span>Email</span><input name="email" type="email" required maxLength={120} autoComplete="email" placeholder="you@example.com" /></label>
+          <label className="field"><span>Password</span><input name="password" type="password" required minLength={mode === 'up' ? 8 : 1} maxLength={200} autoComplete={mode === 'up' ? 'new-password' : 'current-password'} placeholder={mode === 'up' ? 'At least 8 characters' : 'Your password'} /></label>
+          {err && <p className="msg msg--err" role="alert">{err}</p>}
+          <button className="btn btn--glass" disabled={busy}>{busy ? 'Please wait…' : mode === 'in' ? 'Sign in' : 'Create account'}</button>
+        </form>
+        <p className="signin__legal">Only your name, email and photo are read at Google sign-in. Classroom and Calendar access are asked for separately, when you connect them. See the <a href="/privacy">privacy policy</a> and <a href="/terms">terms</a>.</p>
       </div>
       <aside className="signin__side">
         <h2>Who sees what</h2>
@@ -138,7 +170,10 @@ function CourseDetail({ course, qs, as, children }: { course: GCourse; qs: strin
     <div className="panel glass">
       <div className="panel__head">
         <div><h2>{course.name}</h2>{course.section && <p className="tiny">{course.section}</p>}</div>
-        <a className="btn btn--glass btn--sm" href={course.alternateLink} target="_blank" rel="noreferrer">Open in Classroom <Icon d={I.ext} /></a>
+        <div className="actions">
+          {as === 'teacher' && d.students.some((s) => s.email) && <a className="btn btn--ghost btn--sm" href={gmail(d.students.map((s) => s.email).filter(Boolean), course.name)} target="_blank" rel="noreferrer">Email class</a>}
+          <a className="btn btn--glass btn--sm" href={course.alternateLink} target="_blank" rel="noreferrer">Open in Classroom <Icon d={I.ext} /></a>
+        </div>
       </div>
       {children?.(d, load)}
       <div className="split">
@@ -214,7 +249,8 @@ function StudentHome({ me, reloadMe, courses }: { me: Me; reloadMe: () => void; 
       {needsConnect && <Banner title="Connect Google Classroom" text="Read-only: your classes, assignments, grades and announcements." cta="Connect Classroom" href={connectUrl('student')} />}
       {!needsConnect && <CourseList cr={cr} selected={sel} onSelect={setSel} />}
       {!needsConnect && sel && <CourseDetail key={sel.id} course={sel} qs="" as="student" />}
-      <AcademyCourses me={me} reload={reloadMe} courses={courses} />
+      {can(me, 'academy.enroll') && <AcademyCourses me={me} reload={reloadMe} courses={courses} />}
+      {can(me, 'tools.gmail') && <p className="tiny">Need help? <a className="accent" href={gmail(CONTACT.email, 'Question from the student portal')} target="_blank" rel="noreferrer">Email the mentor</a> (opens Gmail).</p>}
     </>
   );
 }
@@ -360,8 +396,8 @@ function TeacherActions({ course, onDone }: { course: GCourse; onDone: (msg: str
 }
 
 /* ---------- admin ---------- */
-function AdminDesk() {
-  const [tab, setTab] = useState<'demos' | 'people' | 'links'>('demos');
+function AdminDesk({ me }: { me: Me }) {
+  const [tab, setTab] = useState<'demos' | 'people' | 'links'>(can(me, 'desk.demos') ? 'demos' : 'people');
   const [data, setData] = useState<{ demos: Demo[]; people: Person[]; links: Link[] } | null>(null);
   const [err, setErr] = useState('');
   const load = useCallback(() => api<{ demos: Demo[]; people: Person[]; links: Link[] }>('/api/admin').then(setData).catch((e) => setErr(e.message)), []);
@@ -381,9 +417,9 @@ function AdminDesk() {
       <div className="pagehead">
         <div><h1 className="display">Academy desk</h1><p>{pending ? `${pending} demo request${pending > 1 ? 's' : ''} waiting for a call.` : 'No demo requests waiting.'}</p></div>
         <div className="tabs glass" role="tablist">
-          <button role="tab" aria-selected={tab === 'demos'} onClick={() => setTab('demos')}>Demos ({data.demos.length})</button>
-          <button role="tab" aria-selected={tab === 'people'} onClick={() => setTab('people')}>People ({data.people.length})</button>
-          <button role="tab" aria-selected={tab === 'links'} onClick={() => setTab('links')}>Parent links ({data.links.length})</button>
+          {can(me, 'desk.demos') && <button role="tab" aria-selected={tab === 'demos'} onClick={() => setTab('demos')}>Demos ({data.demos.length})</button>}
+          {can(me, 'desk.people') && <button role="tab" aria-selected={tab === 'people'} onClick={() => setTab('people')}>People ({data.people.length})</button>}
+          {can(me, 'desk.people') && <button role="tab" aria-selected={tab === 'links'} onClick={() => setTab('links')}>Parent links ({data.links.length})</button>}
         </div>
       </div>
       {tab === 'demos' && (data.demos.length === 0 ? <Empty><p>No demo requests yet. They appear here the moment a parent sends the form.</p></Empty> : (
@@ -398,7 +434,10 @@ function AdminDesk() {
               <td><a href={`tel:${d.phone}`}>{d.phone}</a>{d.email && <><br /><a href={`mailto:${d.email}`}>{d.email}</a></>}</td>
               <td>{d.preferred_time_slot || '—'}</td>
               <td className="note">{d.message || '—'}</td>
-              <td><select value={d.status} onChange={(e) => patch('demo', d.id, e.target.value)} aria-label={`Status for ${d.student_name}`}><option value="pending">Pending</option><option value="confirmed">Confirmed</option><option value="completed">Completed</option></select></td>
+              <td>
+                <select value={d.status} onChange={(e) => patch('demo', d.id, e.target.value)} aria-label={`Status for ${d.student_name}`}><option value="pending">Pending</option><option value="confirmed">Confirmed</option><option value="completed">Completed</option></select>
+                {d.email && can(me, 'tools.gmail') && <a className="btn btn--ghost btn--sm" style={{ marginTop: 6 }} href={gmail(d.email, `Your free demo class at Raghvyon Academy`, `Hi ${d.parent_name},\n\nThank you for booking a demo for ${d.student_name}${d.subject ? ` in ${d.subject}` : ''}. `)} target="_blank" rel="noreferrer">Reply in Gmail</a>}
+              </td>
             </tr>
           ))}</tbody>
         </table></div>
@@ -443,12 +482,140 @@ function AdminDesk() {
   );
 }
 
+/* ---------- schedule (Calendar + Meet) ---------- */
+function Schedule({ me }: { me: Me }) {
+  const [child, setChild] = useState<Child | null>(me.children[0] || null);
+  const [events, setEvents] = useState<CalEvent[] | null>(null);
+  const [err, setErr] = useState<ApiError | null>(null);
+  const [msg, setMsg] = useState('');
+  const qs = me.user.role === 'parent' && child ? `?student=${child.id}` : '';
+  const load = useCallback(() => { setEvents(null); setErr(null); api<CalEvent[]>(`/api/calendar/upcoming${qs}`).then(setEvents).catch(setErr); }, [qs]);
+  useEffect(load, [load]);
+  const needsConnect = !me.classroom.connected || err?.status === 428;
+  const byDay = new Map<string, CalEvent[]>();
+  for (const e of events || []) { const k = fmtDate(e.start, { weekday: 'long', day: 'numeric', month: 'long' }); byDay.set(k, [...(byDay.get(k) || []), e]); }
+  return (
+    <>
+      <div className="pagehead"><div><h1 className="display">Schedule</h1><p>Classes for the next 14 days, from Google Calendar. Join with one tap when there is a Meet link.</p></div></div>
+      {me.user.role === 'parent' && me.children.length === 0 && <Empty><p>No student is linked to you yet.</p></Empty>}
+      {me.user.role === 'parent' && me.children.length > 1 && <div className="chips">{me.children.map((c) => <button key={c.id} className="chip" aria-pressed={child?.id === c.id} onClick={() => setChild(c)}>{c.name}</button>)}</div>}
+      {me.user.role !== 'parent' && needsConnect && <Banner title="Connect Google" text="Calendar is read with the same connection as Classroom." cta="Connect Google" href={connectUrl(me.classroom.as)} />}
+      {me.user.role === 'parent' && child && !child.connected && <Empty><p><strong>{child.name}</strong> has not connected Google yet.</p></Empty>}
+      {can(me, 'calendar.manage') && !needsConnect && <ScheduleClass onDone={(m) => { setMsg(m); load(); }} />}
+      {msg && <p className="msg msg--ok" role="status">{msg}</p>}
+      {err && err.status !== 428 && <p className="msg msg--err">{err.message}</p>}
+      {!err && events && events.length === 0 && <Empty><p>Nothing scheduled in the next two weeks.</p></Empty>}
+      {events && events.length > 0 && (
+        <div className="days">
+          {[...byDay.entries()].map(([day, list]) => (
+            <section key={day} className="panel glass">
+              <h2>{day}</h2>
+              <ul className="work">
+                {list.map((e) => (
+                  <li key={e.id}>
+                    <div><strong>{e.title}</strong><small>{fmtTime(e.start)} – {fmtTime(e.end)}{e.organizer ? ` · ${e.organizer}` : ''}{e.attendees ? ` · ${e.attendees} invited` : ''}</small></div>
+                    <div className="actions">{e.meet && <a className="btn btn--sm" href={e.meet} target="_blank" rel="noreferrer">Join Meet</a>}<a className="btn btn--ghost btn--sm" href={e.link} target="_blank" rel="noreferrer">Calendar</a></div>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          ))}
+        </div>
+      )}
+    </>
+  );
+}
+
+function ScheduleClass({ onDone }: { onDone: (msg: string) => void }) {
+  const [open, setOpen] = useState(false);
+  const [courses, setCourses] = useState<GCourse[]>([]);
+  const [emails, setEmails] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState('');
+  useEffect(() => { if (open) api<GCourse[]>('/api/classroom/courses').then(setCourses).catch(() => {}); }, [open]);
+  const fillFromCourse = async (id: string) => {
+    if (!id) return;
+    const d = await api<Detail>(`/api/classroom/courses/${id}/work`).catch(() => null);
+    if (d) setEmails(d.students.map((s) => s.email).filter(Boolean).join(', '));
+  };
+  async function submit(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    const f = e.currentTarget; const data = Object.fromEntries(new FormData(f)) as Record<string, string>;
+    setBusy(true); setErr('');
+    try {
+      const ev = await post<CalEvent>('/api/calendar/class', { ...data, minutes: Number(data.minutes), weekly: data.weekly === 'on', weeks: Number(data.weeks), attendees: emails.split(/[\s,;]+/).filter(Boolean) });
+      f.reset(); setEmails(''); setOpen(false);
+      onDone(`Scheduled "${ev.title}"${ev.meet ? ' with a Meet link' : ''}. Invites are on their way.`);
+    } catch (x) { setErr(x instanceof Error ? x.message : 'Could not schedule'); }
+    setBusy(false);
+  }
+  return (
+    <div className="panel glass">
+      <div className="panel__head"><div><h2>Schedule a class</h2><p className="tiny">Creates a Google Calendar event with a Meet link and invites everyone by email.</p></div><button className="btn btn--sm" onClick={() => setOpen((v) => !v)}>{open ? 'Cancel' : 'New class'}</button></div>
+      {open && (
+        <form className="form" onSubmit={submit}>
+          <div className="row">
+            <label className="field"><span>Title</span><input name="title" required maxLength={200} placeholder="Grade 8 Maths · Linear equations" /></label>
+            <label className="field"><span>Fill students from a Classroom class</span><select onChange={(e) => fillFromCourse(e.target.value)} defaultValue=""><option value="">Choose a class (optional)</option>{courses.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select></label>
+          </div>
+          <div className="row">
+            <label className="field"><span>Date</span><input name="date" type="date" required /></label>
+            <label className="field"><span>Start time (IST)</span><input name="time" type="time" required defaultValue="17:00" /></label>
+          </div>
+          <div className="row">
+            <label className="field"><span>Length (minutes)</span><input name="minutes" type="number" min={15} max={240} defaultValue={60} /></label>
+            <label className="field"><span>Repeat weekly</span><div className="inline" style={{ alignItems: 'center', minHeight: 50 }}><input type="checkbox" name="weekly" style={{ width: 20, height: 20, minHeight: 0 }} /><span className="muted">for</span><input name="weeks" type="number" min={1} max={52} defaultValue={12} style={{ maxWidth: 90 }} /><span className="muted">weeks</span></div></label>
+          </div>
+          <label className="field"><span>Student and parent emails (comma separated)</span><textarea value={emails} onChange={(e) => setEmails(e.target.value)} placeholder="aarav@gmail.com, priya.parent@gmail.com" /></label>
+          <label className="field"><span>Notes (optional)</span><input name="description" maxLength={2000} placeholder="Bring your notebook from last week." /></label>
+          {err && <p className="msg msg--err" role="alert">{err}</p>}
+          <button className="btn" disabled={busy}>{busy ? 'Scheduling…' : 'Schedule with Meet link'}</button>
+        </form>
+      )}
+    </div>
+  );
+}
+
+/* ---------- permissions (super admin) ---------- */
+type Catalog = { id: Perm; label: string }[];
+function Permissions({ me }: { me: Me }) {
+  const [data, setData] = useState<{ catalog: Catalog; roles: Record<Role, Perm[]> } | null>(null);
+  const [msg, setMsg] = useState('');
+  const load = useCallback(() => api<{ catalog: Catalog; roles: Record<Role, Perm[]> }>('/api/admin/permissions').then(setData).catch((e) => setMsg(e.message)), []);
+  useEffect(() => void load(), [load]);
+  if (!data) return <p className="muted">{msg || 'Loading…'}</p>;
+  const roles = Object.keys(ROLE_LABEL) as Role[];
+  const toggle = async (role: Role, perm: Perm) => {
+    const next = data.roles[role].includes(perm) ? data.roles[role].filter((p) => p !== perm) : [...data.roles[role], perm];
+    setData({ ...data, roles: { ...data.roles, [role]: next } });
+    try { await post('/api/admin/permissions', { role, perms: next }, 'PUT'); setMsg(`Saved ${ROLE_LABEL[role]} permissions.`); } catch (e) { setMsg(e instanceof Error ? e.message : 'Could not save'); load(); }
+  };
+  return (
+    <>
+      <div className="pagehead"><div><h1 className="display">Permissions</h1><p>{me.superAdmin ? 'What each role can do. Changes apply immediately. The super admin always has everything.' : 'Only the super admin can change these.'}</p></div></div>
+      {msg && <p className="msg msg--ok" role="status">{msg}</p>}
+      <div className="tablewrap glass"><table className="table perms">
+        <thead><tr><th>Permission</th>{roles.map((r) => <th key={r}>{ROLE_LABEL[r]}</th>)}</tr></thead>
+        <tbody>{data.catalog.map((p) => (
+          <tr key={p.id}><td><strong>{p.label}</strong><small className="muted" style={{ display: 'block' }}>{p.id}</small></td>
+            {roles.map((r) => <td key={r}><input type="checkbox" aria-label={`${p.label} for ${ROLE_LABEL[r]}`} checked={data.roles[r].includes(p.id)} disabled={!me.superAdmin} onChange={() => toggle(r, p.id)} /></td>)}
+          </tr>
+        ))}</tbody>
+      </table></div>
+    </>
+  );
+}
+
 /* ---------- root ---------- */
-const NAV: Record<Role, NavItem[]> = {
-  student: [{ id: 'home', label: 'My classes', icon: I.book }],
-  parent: [{ id: 'home', label: "My child's classes", icon: I.book }],
-  teacher: [{ id: 'teach', label: 'Teaching', icon: I.book }],
-  admin: [{ id: 'desk', label: 'Academy desk', icon: I.inbox }, { id: 'teach', label: 'Teaching', icon: I.book }],
+const navFor = (me: Me): NavItem[] => {
+  const items: NavItem[] = [];
+  if (can(me, 'classroom.view') && me.user.role !== 'teacher' && me.user.role !== 'admin') items.push({ id: 'home', label: me.user.role === 'parent' ? "My child's classes" : 'My classes', icon: I.book });
+  if (can(me, 'classroom.manage')) items.push({ id: 'teach', label: 'Teaching', icon: I.book });
+  if (can(me, 'calendar.view')) items.push({ id: 'schedule', label: 'Schedule', icon: I.cal });
+  if (can(me, 'desk.demos') || can(me, 'desk.people')) items.unshift({ id: 'desk', label: 'Academy desk', icon: I.inbox });
+  if (me.user.role === 'admin') items.push({ id: 'perms', label: 'Permissions', icon: I.lock });
+  if (items.length === 0) items.push({ id: 'home', label: 'Home', icon: I.home });
+  return items;
 };
 
 export default function Portal() {
@@ -461,18 +628,21 @@ export default function Portal() {
     void load();
     api<Course[]>('/api/courses').then((c) => c.length && setCourses(c)).catch(() => {});
   }, [load]);
-  useEffect(() => { if (me && !view) setView(NAV[me.user.role][0].id); }, [me, view]);
+  const items = me ? navFor(me) : [];
+  useEffect(() => { if (me && (!view || !items.some((i) => i.id === view))) setView(items[0]?.id || 'home'); }, [me, view, items]);
   const signOut = async () => { await post('/api/auth/logout', {}).catch(() => {}); setMe(null); history.replaceState(null, '', '/portal'); };
 
   if (me === undefined) return <div className="main"><p className="muted">Loading…</p></div>;
-  if (me === null) return <SignIn />;
+  if (me === null) return <SignIn onDone={load} />;
   const role = me.user.role;
   return (
-    <Shell me={me} items={NAV[role]} view={view} setView={setView} onSignOut={signOut}>
-      {role === 'student' && <StudentHome me={me} reloadMe={load} courses={courses} />}
-      {role === 'parent' && <ParentHome me={me} />}
-      {role === 'teacher' && <TeacherHome me={me} />}
-      {role === 'admin' && (view === 'teach' ? <TeacherHome me={me} /> : <AdminDesk />)}
+    <Shell me={me} items={items} view={view} setView={setView} onSignOut={signOut}>
+      {view === 'home' && role === 'parent' && <ParentHome me={me} />}
+      {view === 'home' && role !== 'parent' && <StudentHome me={me} reloadMe={load} courses={courses} />}
+      {view === 'teach' && <TeacherHome me={me} />}
+      {view === 'schedule' && <Schedule me={me} />}
+      {view === 'desk' && <AdminDesk me={me} />}
+      {view === 'perms' && <Permissions me={me} />}
     </Shell>
   );
 }

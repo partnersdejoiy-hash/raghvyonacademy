@@ -5,7 +5,29 @@ import {
   q, json, fail, HttpError, origin, readJson, cookie, setCookie, sign,
   sessionCookie, clearSessionCookie, currentUser, requireUser, isAdminEmail, type User, type Role,
 } from './_lib.js';
-import { authUrl, exchangeCode, idTokenPayload, storeTokens, grantedScopes, hasClassroom, classroom, roleToScope } from './_google.js';
+import { authUrl, exchangeCode, idTokenPayload, storeTokens, grantedScopes, hasClassroom, classroom, calendar, roleToScope } from './_google.js';
+import { PERMISSIONS, allPerms, effectivePerms, isSuperAdmin, type Perm } from './_perms.js';
+
+/** Load the user and check one permission. */
+async function allowed(req: Request, perm: Perm) {
+  const user = await requireUser(req);
+  const perms = await effectivePerms(user);
+  if (!perms.includes(perm)) throw new HttpError(403, 'Your role does not have permission for this. Ask the academy.');
+  return { user, perms };
+}
+
+/* ---------------- passwords (scrypt, no extra dependency) ---------------- */
+const hashPassword = (pw: string) => {
+  const salt = crypto.randomBytes(16).toString('base64url');
+  return `scrypt$${salt}$${crypto.scryptSync(pw, salt, 64).toString('base64url')}`;
+};
+const checkPassword = (pw: string, stored: string | null) => {
+  const [, salt, hash] = (stored || '').split('$');
+  if (!salt || !hash) return false;
+  const a = crypto.scryptSync(pw, salt, 64);
+  const b = Buffer.from(hash, 'base64url');
+  return a.length === b.length && crypto.timingSafeEqual(a, b);
+};
 
 type Ctx = { req: Request; params: Record<string, string>; url: URL };
 type Handler = (c: Ctx) => Promise<Response>;
@@ -33,7 +55,7 @@ async function handle(req: Request) {
     return fail('Something went wrong. Please try again.', 500);
   }
 }
-export const GET = handle, POST = handle, PATCH = handle, DELETE = handle;
+export const GET = handle, POST = handle, PUT = handle, PATCH = handle, DELETE = handle;
 
 /* ---------------- public ---------------- */
 
@@ -110,6 +132,32 @@ on('GET', '/auth/google/callback', async ({ req, url }) => {
   return new Response(null, { status: 302, headers: { location: next, 'set-cookie': sessionCookie(user.id) } });
 });
 
+const Email = z.string().trim().toLowerCase().email('That email does not look right').max(120);
+const Password = z.string().min(8, 'Use at least 8 characters').max(200);
+
+on('POST', '/auth/register', async ({ req }) => {
+  const parsed = z.object({ name: text(80).min(2, 'Please add your name'), email: Email, password: Password }).safeParse(await readJson(req));
+  if (!parsed.success) throw new HttpError(400, parsed.error.issues[0]?.message || 'Please check the form');
+  const { name, email, password } = parsed.data;
+  const [existing] = await q<{ id: number; password_hash: string | null }>('SELECT id,password_hash FROM users WHERE email=?', [email]);
+  if (existing?.password_hash) throw new HttpError(409, 'An account with this email already exists. Sign in instead.');
+  const role: Role = isAdminEmail(email) ? 'admin' : 'student';
+  const [user] = existing
+    ? await q<User>('UPDATE users SET password_hash=?, name=COALESCE(NULLIF(name,\'\'),?) WHERE id=? RETURNING id,email,name,role,avatar_url,grade', [hashPassword(password), name, existing.id])
+    : await q<User>('INSERT INTO users (email,name,role,password_hash) VALUES (?,?,?,?) RETURNING id,email,name,role,avatar_url,grade', [email, name, role, hashPassword(password)]);
+  return json({ user }, 201, { 'set-cookie': sessionCookie(user.id) });
+});
+
+on('POST', '/auth/login', async ({ req }) => {
+  const parsed = z.object({ email: Email, password: z.string().min(1, 'Enter your password').max(200) }).safeParse(await readJson(req));
+  if (!parsed.success) throw new HttpError(400, parsed.error.issues[0]?.message || 'Please check the form');
+  const [row] = await q<User & { password_hash: string | null }>('SELECT id,email,name,role,avatar_url,grade,password_hash FROM users WHERE email=?', [parsed.data.email]);
+  if (!row?.password_hash) throw new HttpError(401, row ? 'This account signs in with Google. Use "Continue with Google".' : 'No account with this email. Create one first.');
+  if (!checkPassword(parsed.data.password, row.password_hash)) throw new HttpError(401, 'Wrong password.');
+  const { password_hash: _ph, ...user } = row;
+  return json({ user }, 200, { 'set-cookie': sessionCookie(user.id) });
+});
+
 on('POST', '/auth/logout', async () => json({ ok: true }, 200, { 'set-cookie': clearSessionCookie() }));
 
 /* ---------------- me & enrolments ---------------- */
@@ -130,8 +178,11 @@ on('GET', '/me', async ({ req }) => {
         )
       : Promise.resolve([]),
   ]);
+  const perms = await effectivePerms(user);
   return json({
     user,
+    perms,
+    superAdmin: isSuperAdmin(user),
     courseIds: enrollments.map((e) => e.course_id),
     classroom: { connected: hasClassroom(scopes, roleToScope(user.role)), as: roleToScope(user.role) },
     children: children.map((c) => ({ ...c, connected: !!c.connected })),
@@ -139,7 +190,7 @@ on('GET', '/me', async ({ req }) => {
 });
 
 const enroll = (add: boolean): Handler => async ({ req }) => {
-  const user = await requireUser(req);
+  const { user } = await allowed(req, 'academy.enroll');
   const { course_id } = await readJson<{ course_id: number }>(req);
   if (!Number.isInteger(course_id)) throw new HttpError(400, 'Pick a course');
   if (add) await q('INSERT OR IGNORE INTO enrollments (student_user_id,course_id) SELECT ?,id FROM courses WHERE id=? AND active=1', [user.id, course_id]);
@@ -153,7 +204,7 @@ on('DELETE', '/enroll', enroll(false));
 
 /** Whose Classroom are we reading? Students read their own; parents read a linked child; teachers/admins read their own. */
 async function classroomSubject(req: Request, url: URL) {
-  const user = await requireUser(req);
+  const { user } = await allowed(req, 'classroom.view');
   const studentParam = Number(url.searchParams.get('student'));
   if (user.role === 'parent') {
     if (!studentParam) throw new HttpError(400, 'Choose a child first');
@@ -205,7 +256,7 @@ on('GET', '/classroom/courses/:id/work', async ({ req, url, params }) => {
   });
 });
 
-const teacher = (req: Request) => requireUser(req, ['teacher', 'admin']);
+const teacher = async (req: Request) => (await allowed(req, 'classroom.manage')).user;
 
 on('POST', '/classroom/courses', async ({ req }) => {
   const user = await teacher(req);
@@ -249,12 +300,61 @@ on('POST', '/classroom/courses/:id/announce', async ({ req, params }) => {
   return json({ id: a.id, link: a.alternateLink }, 201);
 });
 
+/* ---------------- Calendar + Meet ---------------- */
+
+type GEvent = { id: string; summary?: string; description?: string; start: { dateTime?: string; date?: string }; end: { dateTime?: string; date?: string }; hangoutLink?: string; htmlLink: string; attendees?: { email: string; responseStatus?: string }[]; organizer?: { email: string; displayName?: string } };
+
+const eventOut = (e: GEvent) => ({
+  id: e.id, title: e.summary || '(no title)', description: e.description || '', start: e.start.dateTime || e.start.date, end: e.end.dateTime || e.end.date,
+  allDay: !e.start.dateTime, meet: e.hangoutLink || null, link: e.htmlLink, organizer: e.organizer?.displayName || e.organizer?.email || '', attendees: (e.attendees || []).length,
+});
+
+on('GET', '/calendar/upcoming', async ({ req, url }) => {
+  const { user } = await allowed(req, 'calendar.view');
+  let subjectId = user.id;
+  const studentParam = Number(url.searchParams.get('student'));
+  if (user.role === 'parent' && studentParam) {
+    const [link] = await q('SELECT 1 FROM parent_links WHERE parent_user_id=? AND student_user_id=?', [user.id, studentParam]);
+    if (!link) throw new HttpError(403, 'This student is not linked to you');
+    subjectId = studentParam;
+  }
+  const now = new Date();
+  const until = new Date(now.getTime() + 14 * 86400000);
+  const p = new URLSearchParams({ timeMin: now.toISOString(), timeMax: until.toISOString(), singleEvents: 'true', orderBy: 'startTime', maxResults: '30' });
+  const data = await calendar<{ items?: GEvent[] }>(subjectId, `calendars/primary/events?${p}`);
+  return json((data.items || []).filter((e) => e.start.dateTime).map(eventOut));
+});
+
+on('POST', '/calendar/class', async ({ req }) => {
+  const { user } = await allowed(req, 'calendar.manage');
+  const b = await readJson<{ title: string; description: string; date: string; time: string; minutes: number; attendees: string[]; weekly: boolean; weeks: number }>(req);
+  if (!b.title?.trim() || !b.date || !b.time) throw new HttpError(400, 'Give the class a title, a date and a time');
+  const start = `${b.date}T${b.time}:00`;
+  const [h, m] = b.time.split(':').map(Number);
+  const mins = Math.min(Math.max(Number(b.minutes) || 60, 15), 240);
+  const endDate = new Date(Date.UTC(2000, 0, 1, h, m + mins));
+  const end = `${b.date}T${String(endDate.getUTCHours()).padStart(2, '0')}:${String(endDate.getUTCMinutes()).padStart(2, '0')}:00`;
+  const attendees = (Array.isArray(b.attendees) ? b.attendees : []).map((e) => String(e).trim().toLowerCase()).filter((e) => /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(e)).slice(0, 100);
+  const body: Record<string, unknown> = {
+    summary: b.title.trim().slice(0, 200),
+    description: (b.description || '').trim().slice(0, 2000) || undefined,
+    start: { dateTime: start, timeZone: 'Asia/Kolkata' },
+    end: { dateTime: end, timeZone: 'Asia/Kolkata' },
+    attendees: attendees.map((email) => ({ email })),
+    conferenceData: { createRequest: { requestId: crypto.randomUUID(), conferenceSolutionKey: { type: 'hangoutsMeet' } } },
+    reminders: { useDefault: false, overrides: [{ method: 'popup', minutes: 10 }, { method: 'email', minutes: 60 }] },
+  };
+  if (b.weekly) body.recurrence = [`RRULE:FREQ=WEEKLY;COUNT=${Math.min(Math.max(Number(b.weeks) || 12, 1), 52)}`];
+  const e = await calendar<GEvent>(user.id, `calendars/primary/events?conferenceDataVersion=1&sendUpdates=${attendees.length ? 'all' : 'none'}`, { method: 'POST', body });
+  return json(eventOut(e), 201);
+});
+
 /* ---------------- admin ---------------- */
 
-const admin = (req: Request) => requireUser(req, ['admin']);
-
 on('GET', '/admin', async ({ req }) => {
-  await admin(req);
+  const user = await requireUser(req);
+  const perms = await effectivePerms(user);
+  if (!perms.includes('desk.demos') && !perms.includes('desk.people')) throw new HttpError(403, 'Your role does not have desk access.');
   const [demos, people, links] = await Promise.all([
     q('SELECT * FROM demo_bookings ORDER BY created_at DESC LIMIT 200'),
     q(`SELECT u.id,u.name,u.email,u.role,u.avatar_url,u.created_at,
@@ -269,19 +369,38 @@ on('GET', '/admin', async ({ req }) => {
 const STATUSES = ['pending', 'confirmed', 'completed'];
 const ROLES: Role[] = ['student', 'parent', 'teacher', 'admin'];
 on('PATCH', '/admin', async ({ req }) => {
-  const me = await admin(req);
   const { kind, id, value } = await readJson<{ kind: string; id: number; value: string }>(req);
   if (!Number.isInteger(id) || !value) throw new HttpError(400, 'Nothing to change');
-  if (kind === 'demo' && STATUSES.includes(value)) await q('UPDATE demo_bookings SET status=? WHERE id=?', [value, id]);
-  else if (kind === 'role' && ROLES.includes(value as Role)) {
+  if (kind === 'demo' && STATUSES.includes(value)) {
+    await allowed(req, 'desk.demos');
+    await q('UPDATE demo_bookings SET status=? WHERE id=?', [value, id]);
+  } else if (kind === 'role' && ROLES.includes(value as Role)) {
+    const { user: me } = await allowed(req, 'desk.people');
+    const [target] = await q<{ email: string }>('SELECT email FROM users WHERE id=?', [id]);
+    if (target && isAdminEmail(target.email) && value !== 'admin') throw new HttpError(400, 'The super admin stays admin');
     if (id === me.id && value !== 'admin') throw new HttpError(400, 'You cannot remove your own admin role');
     await q('UPDATE users SET role=? WHERE id=?', [value, id]);
   } else throw new HttpError(400, 'Unknown change');
   return json({ ok: true });
 });
 
+on('GET', '/admin/permissions', async ({ req }) => {
+  await requireUser(req, ['admin']);
+  return json({ catalog: PERMISSIONS, roles: await allPerms() });
+});
+
+on('PUT', '/admin/permissions', async ({ req }) => {
+  const user = await requireUser(req);
+  if (!isSuperAdmin(user)) throw new HttpError(403, 'Only the super admin can change permissions');
+  const { role, perms } = await readJson<{ role: Role; perms: string[] }>(req);
+  if (!ROLES.includes(role as Role) || !Array.isArray(perms)) throw new HttpError(400, 'Pick a role and its permissions');
+  const clean = perms.filter((p) => PERMISSIONS.some((x) => x.id === p));
+  await q(`INSERT INTO role_permissions (role,perms,updated_at) VALUES (?,?,datetime('now')) ON CONFLICT(role) DO UPDATE SET perms=excluded.perms, updated_at=datetime('now')`, [role, JSON.stringify(clean)]);
+  return json({ ok: true, perms: clean });
+});
+
 on('POST', '/admin/link', async ({ req }) => {
-  await admin(req);
+  await allowed(req, 'desk.people');
   const { parent_id, student_id } = await readJson<{ parent_id: number; student_id: number }>(req);
   if (!Number.isInteger(parent_id) || !Number.isInteger(student_id) || parent_id === student_id) throw new HttpError(400, 'Pick a parent and a student');
   await q('INSERT OR IGNORE INTO parent_links (parent_user_id,student_user_id) VALUES (?,?)', [parent_id, student_id]);
@@ -289,7 +408,7 @@ on('POST', '/admin/link', async ({ req }) => {
 });
 
 on('DELETE', '/admin/link', async ({ req }) => {
-  await admin(req);
+  await allowed(req, 'desk.people');
   const { parent_id, student_id } = await readJson<{ parent_id: number; student_id: number }>(req);
   await q('DELETE FROM parent_links WHERE parent_user_id=? AND student_user_id=?', [parent_id, student_id]);
   return json({ ok: true });

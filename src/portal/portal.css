@@ -119,3 +119,43 @@
   .work li { grid-template-columns: 1fr; }
   .work li .chip { justify-self: start; }
 }
+
+/* ---------- email + password ---------- */
+.or { display: flex; align-items: center; gap: 12px; color: var(--fg-3); font-size: 13px; max-width: 420px; }
+.or::before, .or::after { content: ''; flex: 1; height: 1px; background: var(--line); }
+.pwform { display: grid; gap: 12px; max-width: 420px; }
+.pwform .tabs { width: 100%; }
+.pwform .tabs button { flex: 1; }
+.pwform .btn { width: 100%; }
+
+/* ---------- schedule & permissions ---------- */
+.days { display: grid; gap: 14px; }
+.days h2 { font-size: 16px; font-weight: 600; color: var(--fg-2); }
+.perms td:not(:first-child) { text-align: center; }
+.perms input[type='checkbox'] { width: 20px; height: 20px; accent-color: var(--lime); }
+.work li .actions { justify-self: end; }
+
+/* ---------- mobile polish ---------- */
+.tabs { max-width: 100%; overflow-x: auto; scrollbar-width: none; }
+.tabs::-webkit-scrollbar { display: none; }
+.tabs button { white-space: nowrap; }
+@media (max-width: 900px) {
+  .main { padding: 16px var(--margin) 72px; gap: 16px; }
+  .pagehead { flex-direction: column; align-items: stretch; }
+  .pagehead h1 { font-size: clamp(1.6rem, 7vw, 2.2rem); }
+  .panel { padding: 16px; }
+  .panel__head { flex-direction: column; align-items: flex-start; }
+  .panel__head .actions, .panel__head .btn { width: 100%; }
+  .panel__head .actions .btn { flex: 1; }
+  .grid { grid-template-columns: 1fr; }
+  .work li .actions { justify-self: stretch; }
+  .work li .actions .btn { flex: 1; }
+  .signin__copy { padding: 28px var(--margin) 32px; gap: 18px; }
+  .signin__copy h1 { font-size: clamp(2rem, 9vw, 2.75rem); }
+  .signin__side { padding: 28px var(--margin) 40px; }
+  .gbtn, .pwform, .or { max-width: none; width: 100%; }
+  .gbtn { justify-content: center; }
+  .topbar .wordmark span { display: none; }
+  .table { font-size: 13px; }
+  .table th, .table td { padding: 10px; }
+}
