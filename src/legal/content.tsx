@@ -38,9 +38,14 @@ export const PRIVACY: Doc = {
               password and we do not ask for access to your Drive, Gmail or contacts.
             </li>
             <li>
-              <strong>Google Classroom, only if you connect it:</strong> students and parents grant read-only access to the student's
-              classes, coursework, grades and announcements. Teachers grant access to create and manage their own classes, assignments,
-              rosters and announcements. We store an encrypted access key so the portal can read Classroom on your behalf; you can revoke
+              <strong>Email and password sign-in:</strong> if you create an account without Google, we store your name, email and a
+              one-way scrypt hash of your password. We never store or see the password itself.
+            </li>
+            <li>
+              <strong>Google Classroom and Calendar, only if you connect them:</strong> students and parents grant read-only access to
+              the student's classes, coursework, grades, announcements and upcoming calendar events. Teachers grant access to create and
+              manage their own classes, assignments, rosters and announcements, and to create calendar events with Google Meet links for
+              their classes. We store an encrypted access key so the portal can read Classroom on your behalf; you can revoke
               it any time at <a href="https://myaccount.google.com/permissions">myaccount.google.com/permissions</a>.
             </li>
             <li>
@@ -85,7 +90,7 @@ export const PRIVACY: Doc = {
           <ul>
             <li><strong>Vercel</strong> hosts the website and its server functions.</li>
             <li><strong>Cloudflare D1</strong> stores the database of bookings, accounts and course choices.</li>
-            <li><strong>Google</strong> provides sign-in and Classroom. Google's own privacy policy applies to your Google account. Our use of Google user data follows the <a href="https://developers.google.com/terms/api-services-user-data-policy">Google API Services User Data Policy</a>, including its Limited Use requirements.</li>
+            <li><strong>Google</strong> provides sign-in, Classroom, Calendar and Meet. Google's own privacy policy applies to your Google account. Our use of Google user data follows the <a href="https://developers.google.com/terms/api-services-user-data-policy">Google API Services User Data Policy</a>, including its Limited Use requirements.</li>
             <li><strong>Google Fonts</strong> and <strong>Wikimedia Commons</strong> serve the typeface and the archive pictures, so your browser contacts them when the page loads.</li>
           </ul>
           <p>These services may process data outside India. Each is bound by its own security and privacy commitments.</p>
