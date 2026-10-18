@@ -45,6 +45,11 @@
 .rv h1, .rv h2, .rv h3, .rv p, .rv ul, .rv ol, .rv figure, .rv blockquote { margin: 0; padding: 0; }
 .rv ul, .rv ol { list-style: none; }
 .rv a { color: inherit; text-underline-offset: 0.2em; }
+.rv a.btn { color: var(--ink); }
+.rv a.btn--ink { color: var(--lime); }
+.rv a.folder, .rv .folder { color: var(--ink); }
+.rv a.cta { color: var(--ink); }
+.rv a.cta:hover, .rv a.cta:focus-visible { color: var(--lime); }
 .rv img { display: block; max-width: 100%; }
 .rv ::selection { background: var(--lime); color: var(--ink); }
 .rv :focus-visible { outline: 3px solid var(--lime); outline-offset: 3px; }
@@ -108,11 +113,11 @@ html { scrollbar-color: var(--navy-3) var(--night); scroll-behavior: smooth; }
 .hero__fallback i:nth-child(3) { background: var(--pink); }
 .hero__fallback i:nth-child(4) { background: var(--peach); }
 .hero__legend { position: absolute; z-index: 2; left: var(--margin); bottom: 28px; display: flex; flex-wrap: wrap; gap: 8px 18px; font-size: var(--step-small); color: var(--paper-soft); }
-.hero__legend span { display: inline-flex; align-items: center; gap: 8px; }
+.hero__legend span { display: inline-flex; align-items: center; gap: 8px; background: var(--night); padding: 4px 8px; color: var(--paper); }
 .hero__legend b { width: 12px; height: 12px; display: inline-block; }
 
 /* ---------- folder stack ---------- */
-.folders { position: relative; height: clamp(420px, 62vh, 560px); margin-top: 0; padding-top: 48px; background: var(--night); }
+.folders { position: relative; height: clamp(520px, 66vh, 620px); padding-top: 48px; background: var(--night); overflow: hidden; }
 .folder { position: absolute; left: 7%; right: 7%; height: 100%; text-decoration: none; color: var(--ink); transition: transform 400ms var(--ease); }
 .folder:hover, .folder:focus-visible { transform: translateY(-14px); }
 .folder__tab { position: absolute; top: -40px; height: 40px; padding: 0 34px; display: flex; align-items: center; font-size: 18px; font-weight: 600; letter-spacing: -0.01em; clip-path: polygon(14px 0, calc(100% - 14px) 0, 100% 100%, 0 100%); background: inherit; }
