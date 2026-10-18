@@ -1,318 +1,313 @@
-import { useEffect, useRef, useState, type FormEvent } from 'react';
+import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react';
+import gsap from 'gsap';
+import { ScrollTrigger } from 'gsap/ScrollTrigger';
+import '../ui/theme.css';
 import './site.css';
 import { CONTACT, FALLBACK_COURSES, FAQ, METHOD, PICTURES, pictureUrl, type Course } from './content';
-import { TERM_COLOURS, hasWebGL } from './cube';
+import { TERM_COLOURS } from '../ui/cube';
+import { CubeFallback, useCube, type CubeHandle } from '../ui/Cube';
+import { Mark, Wordmark } from '../ui/Mark';
 
-export type CubeHandle = { setSizes(a: number, b: number): void; setExplode(v: number): void; dispose(): void };
+gsap.registerPlugin(ScrollTrigger);
 
-/** Mount the 3D cube lazily so three.js never blocks the first paint. */
-export function useCube(opts: { a: number; b: number; explode: number; drag?: boolean }, onReady?: (c: CubeHandle) => void) {
-  const ref = useRef<HTMLCanvasElement>(null);
-  const [failed, setFailed] = useState(false);
+const reduceMotion = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+const Arrow = () => (
+  <svg className="arrow" viewBox="0 0 16 16" aria-hidden="true">
+    <path d="M3 13 13 3M5 3h8v8" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+  </svg>
+);
+
+const Shot = ({ k, w, eager = false }: { k: string; w: number; eager?: boolean }) => (
+  <img src={pictureUrl(k, w)} alt={PICTURES[k].alt} loading={eager ? 'eager' : 'lazy'} decoding="async" />
+);
+
+/* ---------- loader ---------- */
+function Loader({ done }: { done: boolean }) {
+  const pct = useRef<HTMLSpanElement>(null);
+  const bar = useRef<HTMLElement>(null);
+  const [gone, setGone] = useState(false);
   useEffect(() => {
-    const canvas = ref.current;
-    if (!canvas) return;
-    if (!hasWebGL()) return setFailed(true);
-    let cube: CubeHandle | undefined;
-    let cancelled = false;
-    import('./cube')
-      .then(({ mountCube }) => {
-        if (cancelled) return;
-        cube = mountCube(canvas, opts);
-        onReady?.(cube);
-      })
-      .catch(() => setFailed(true));
-    return () => {
-      cancelled = true;
-      cube?.dispose();
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    if (reduceMotion()) return setGone(true);
+    const n = { v: 0 };
+    const tl = gsap.to(n, { v: 100, duration: 1.1, ease: 'power2.out', onUpdate: () => { if (pct.current) pct.current.textContent = `${Math.round(n.v)}%`; if (bar.current) bar.current.style.width = `${n.v}%`; } });
+    return () => { tl.kill(); };
   }, []);
-  return { ref, failed };
+  useEffect(() => {
+    if (!done) return;
+    const t = setTimeout(() => setGone(true), 1150);
+    return () => clearTimeout(t);
+  }, [done]);
+  return (
+    <div className={`loader ${gone ? 'is-done' : ''}`} aria-hidden={gone}>
+      <div className="loader__in">
+        <Mark size={44} />
+        <div className="loader__name">Raghvyon</div>
+        <div className="loader__bar"><i ref={bar} /></div>
+        <span className="loader__pct" ref={pct}>0%</span>
+      </div>
+    </div>
+  );
 }
 
-export const Bullet = () => (
-  <span className="bullet" aria-hidden="true">
-    <i />
-    <i />
-    <i />
-    <i />
-  </span>
-);
-
-const Shot = ({ k, w, className = '', eager = false }: { k: string; w: number; className?: string; eager?: boolean }) => (
-  <span className={`motif ${className}`}>
-    <img src={pictureUrl(k, w)} alt={PICTURES[k].alt} loading={eager ? 'eager' : 'lazy'} decoding="async" />
-  </span>
-);
-
-function Hero() {
-  const cubeRef = useRef<CubeHandle | undefined>(undefined);
-  const { ref, failed } = useCube({ a: 3, b: 2, explode: 2.2 }, (c) => {
-    cubeRef.current = c;
-    c.setExplode(0.14);
-  });
+/* ---------- nav ---------- */
+const LINKS = [
+  ['#courses', 'Courses'],
+  ['#method', 'Method'],
+  ['#mentor', 'Mentor'],
+  ['#faq', 'FAQ'],
+];
+function Nav() {
+  const [scrolled, setScrolled] = useState(false);
+  const [open, setOpen] = useState(false);
   useEffect(() => {
-    const onScroll = () => cubeRef.current?.setExplode(0.14 + Math.min(scrollY / innerHeight, 1.2) * 0.9);
+    const f = () => setScrolled(scrollY > 24);
+    f();
+    addEventListener('scroll', f, { passive: true });
+    return () => removeEventListener('scroll', f);
+  }, []);
+  return (
+    <>
+      <nav className={`nav ${scrolled || open ? 'is-scrolled' : ''}`} aria-label="Main">
+        <div className="nav__pill glass">
+          <Wordmark />
+          <div className="nav__links">
+            {LINKS.map(([h, l]) => <a key={h} href={h}>{l}</a>)}
+          </div>
+          <div className="nav__cta">
+            <a className="btn btn--ghost" href="/portal">Sign in</a>
+            <a className="btn btn--sm" href="#demo">Book a free demo</a>
+            <button className="nav__burger" aria-label={open ? 'Close menu' : 'Open menu'} aria-expanded={open} onClick={() => setOpen((o) => !o)}>
+              <i style={open ? { transform: 'translateY(4.5px) rotate(45deg)' } : undefined} />
+              <i style={open ? { transform: 'translateY(-4.5px) rotate(-45deg)' } : undefined} />
+            </button>
+          </div>
+        </div>
+      </nav>
+      <div className={`sheet ${open ? 'is-open' : ''}`} onClick={() => setOpen(false)}>
+        {LINKS.map(([h, l]) => <a key={h} href={h}>{l}</a>)}
+        <a href="/portal">Sign in</a>
+        <a className="btn" href="#demo">Book a free demo</a>
+      </div>
+    </>
+  );
+}
+
+/* ---------- hero ---------- */
+function Hero({ onCubeReady }: { onCubeReady: () => void }) {
+  const cube = useRef<CubeHandle | undefined>(undefined);
+  const { ref, failed, state } = useCube({ a: 3, b: 2, explode: 2.4, particles: true }, (c) => {
+    cube.current = c;
+    c.setExplode(0.16);
+    onCubeReady();
+  });
+  useEffect(() => { if (failed) onCubeReady(); }, [failed, onCubeReady]);
+  useEffect(() => {
+    const onScroll = () => cube.current?.setExplode(0.16 + Math.min(scrollY / innerHeight, 1.2) * 1.1);
     addEventListener('scroll', onScroll, { passive: true });
     return () => removeEventListener('scroll', onScroll);
   }, []);
   return (
     <header className="hero">
-      <nav className="bar" aria-label="Main">
-        <a className="bar__left" href="#courses">Courses</a>
-        <a className="bar__mark" href="/" aria-label="Raghvyon Academy home">
-          <Bullet /> Raghvyon Academy
-        </a>
-        <a className="bar__link" href="/portal">Student login</a>
-      </nav>
-      <div className="hero__copy">
-        <h1 className="hero__title">Raghvyon</h1>
-        <p className="hero__sub">Maths, science and English for Grades 2 to 12, taught the why before the formula.</p>
-        <div className="hero__actions">
-          <a className="btn" href="#demo">
-            Book a free demo <Bullet />
-          </a>
-          <a className="text" href="#why">See how we teach</a>
+      <div className="hero__glow" aria-hidden="true" />
+      <div className="hero__grid" aria-hidden="true" />
+      <div className="wrap hero__in">
+        <div>
+          <h1 className="display hero__title" data-hero>
+            Learn the <span className="accent">why</span> before the formula.
+          </h1>
+          <p className="lead hero__lead" data-hero>
+            Online classes in maths, science and English for Grades 2 to 12, with one mentor who knows your child. Students in India and the US.
+          </p>
+          <div className="hero__actions" data-hero>
+            <a className="btn" href="#demo">Book a free demo <Arrow /></a>
+            <a className="btn btn--glass" href="#why">See how we teach</a>
+          </div>
+          <p className="hero__trust" data-hero>
+            <span>First class free</span><span>No card needed</span><span>Grades 2–12</span><span>India &amp; US time zones</span>
+          </p>
+        </div>
+        <div className="stage" data-hero aria-hidden="true">
+          <div className="stage__halo" />
+          <div className="stage__ring" />
+          <div className="stage__ring stage__ring--2" />
+          {failed ? <CubeFallback /> : <canvas ref={ref} style={{ opacity: state === 'ready' ? 1 : 0, transition: 'opacity 800ms' }} />}
+          {['a³', '3a²b', '3ab²', 'b³'].map((t, i) => (
+            <span key={t} className="stage__tag glass"><b style={{ background: TERM_COLOURS[i] }} />{t}</span>
+          ))}
         </div>
       </div>
-      <div className="hero__stage" aria-hidden="true">
-        {failed ? (
-          <div className="hero__fallback">
-            <i />
-            <i />
-            <i />
-            <i />
-          </div>
-        ) : (
-          <canvas ref={ref} />
-        )}
-      </div>
-      <p className="hero__legend" aria-hidden="true">
-        {['a³', '3a²b', '3ab²', 'b³'].map((t, i) => (
-          <span key={t}>
-            <b style={{ background: TERM_COLOURS[i] }} /> {t}
-          </span>
-        ))}
-      </p>
+      <div className="hero__scroll" aria-hidden="true"><i />SCROLL</div>
     </header>
   );
 }
 
-const FOLDERS = [
-  { href: '#courses', name: 'Courses', bg: 'var(--sand)', tab: '6%' },
-  { href: '#method', name: 'Method', bg: 'var(--peri)', tab: '27%' },
-  { href: '#mentor', name: 'Mentor', bg: 'var(--peach)', tab: '48%' },
-  { href: '#questions', name: 'Questions', bg: 'var(--pink)', tab: '69%' },
+/* ---------- marquee + stats ---------- */
+const SUBJECTS = ['Mathematics', 'Science', 'English', 'Spoken English', 'Social Studies', 'Computer Skills', 'Exam Prep'];
+function Marquee() {
+  const row = SUBJECTS.map((s) => <span key={s} className="marquee__item"><Mark />{s}</span>);
+  return (
+    <div className="marquee" aria-hidden="true">
+      <div className="marquee__track">{row}{row}</div>
+    </div>
+  );
+}
+
+const STATS = [
+  { n: 7, label: 'subjects, one method' },
+  { text: '2–12', label: 'grades, CBSE, ICSE and US standards' },
+  { n: 7, suffix: '+', label: 'years of teaching' },
+  { n: 2, label: 'countries: India and the US' },
 ];
-
-function Folders() {
+function Stats() {
   return (
-    <nav className="folders" aria-label="Sections">
-      {FOLDERS.map((f, i) => (
-        <a key={f.href} className="folder on-light" href={f.href} style={{ top: 48 + i * 64, background: f.bg, zIndex: i }}>
-          <span className="folder__tab" style={{ left: f.tab }}>{f.name}</span>
-          <span className="folder__body" />
-        </a>
-      ))}
-      <div className="folder folder--front on-light" style={{ top: 48 + FOLDERS.length * 64, background: 'var(--lime)', zIndex: 9 }}>
-        <span className="folder__tab" style={{ left: '84%' }}>Demo</span>
-        <div className="folder__body">
-          <a className="btn btn--ink" href="#demo">
-            Book a free demo <Bullet />
-          </a>
-          <p>One mentor, seven subjects, students in India and the US. The first class costs nothing.</p>
+    <div className="wrap stats">
+      {STATS.map((s, i) => (
+        <div key={i} className="stat glass" data-reveal>
+          <strong>{s.text ?? <><span data-count={s.n}>0</span>{s.suffix}</>}</strong>
+          <span>{s.label}</span>
         </div>
-      </div>
-    </nav>
+      ))}
+    </div>
   );
 }
 
-function Intro() {
-  return (
-    <section className="intro" aria-label="How every class begins" data-reveal>
-      <p>
-        Every class opens with a drawing <Shot k="mathematics" w={120} className="thumb" />, an experiment{' '}
-        <Shot k="science" w={120} className="thumb" /> or a question about the world <Shot k="delhi" w={120} className="thumb" />. The
-        formula comes after the reason.
-      </p>
-    </section>
-  );
-}
-
+/* ---------- live cube ---------- */
 function LiveCube() {
   const [a, setA] = useState(3);
   const [b, setB] = useState(2);
   const cube = useRef<CubeHandle | undefined>(undefined);
-  const { ref, failed } = useCube({ a: 3, b: 2, explode: 0.5, drag: true }, (c) => (cube.current = c));
+  const { ref, failed } = useCube({ a: 3, b: 2, explode: 0.55, drag: true }, (c) => (cube.current = c));
   useEffect(() => cube.current?.setSizes(a, b), [a, b]);
   const terms = [a ** 3, 3 * a * a * b, 3 * a * b * b, b ** 3];
   return (
-    <section className="live" id="why" aria-labelledby="why-title">
-      <div className="live__text" data-reveal>
-        <h2 className="rv-h" id="why-title">Why (a+b)³ has eight blocks</h2>
-        <p>
-          Students meet this formula as a line to memorise. Here it is a cube you can take apart. Change a and b, turn the cube, and count
-          the blocks of each colour.
-        </p>
-        <div className="live__controls">
-          <label>
-            a
-            <input type="range" min={1} max={9} value={a} onChange={(e) => setA(+e.target.value)} aria-label="Length a" />
-            <output>{a}</output>
-          </label>
-          <label>
-            b
-            <input className="b" type="range" min={1} max={9} value={b} onChange={(e) => setB(+e.target.value)} aria-label="Length b" />
-            <output>{b}</output>
-          </label>
-        </div>
-        <p className="equation" aria-live="polite">
-          ({a} + {b})³ ={' '}
-          {terms.map((t, i) => (
-            <span key={i}>
-              {i > 0 && '+ '}
-              <span className="term" style={{ background: TERM_COLOURS[i] }}>{t}</span>{' '}
-            </span>
-          ))}
-          = <span className="total">{(a + b) ** 3}</span>
-        </p>
-      </div>
-      <div className="live__stage">
-        {failed ? (
-          <div className="hero__fallback" style={{ position: 'static', translate: 'none', width: '100%' }} aria-hidden="true">
-            <i />
-            <i />
-            <i />
-            <i />
+    <section className="section" id="why" aria-labelledby="why-title">
+      <div className="wrap live glass" data-reveal>
+        <div className="live__text">
+          <h2 className="display h2" id="why-title">Why (a+b)³ has eight blocks</h2>
+          <p>Students meet this formula as a line to memorise. Here it is a cube you can take apart. Change a and b, turn the cube, count the blocks of each colour.</p>
+          <div className="sliders">
+            <label>a<input type="range" min={1} max={9} value={a} onChange={(e) => setA(+e.target.value)} aria-label="Length a" /><output>{a}</output></label>
+            <label>b<input className="b" type="range" min={1} max={9} value={b} onChange={(e) => setB(+e.target.value)} aria-label="Length b" /><output>{b}</output></label>
           </div>
-        ) : (
-          <canvas ref={ref} aria-label={`A cube of side ${a} plus ${b}, split into eight coloured blocks`} role="img" />
-        )}
-        <p className="live__hint">Drag to turn</p>
+          <p className="equation" aria-live="polite">
+            <span>({a}+{b})³ =</span>
+            {terms.map((t, i) => <span key={i} style={{ display: 'contents' }}>{i > 0 && <span>+</span>}<span className="term" style={{ background: TERM_COLOURS[i] }}>{t}</span></span>)}
+            <span>=</span><span className="total">{(a + b) ** 3}</span>
+          </p>
+        </div>
+        <div className="live__stage">
+          {failed ? <CubeFallback /> : <canvas ref={ref} role="img" aria-label={`A cube of side ${a} plus ${b}, split into eight coloured blocks`} />}
+          <p className="live__hint">Drag to turn</p>
+        </div>
       </div>
     </section>
   );
 }
 
+/* ---------- courses ---------- */
 function Courses({ courses }: { courses: Course[] }) {
-  const [active, setActive] = useState(courses[0]?.slug);
-  const current = courses.find((c) => c.slug === active) ?? courses[0];
   return (
-    <section className="courses on-light" id="courses" aria-labelledby="courses-title">
-      <div className="courses__head" data-reveal>
-        <h2 className="rv-h" id="courses-title">Seven subjects, one method</h2>
-        <p>{courses.length} courses</p>
+    <section className="section wrap" id="courses" aria-labelledby="courses-title">
+      <div className="head" data-reveal>
+        <h2 className="display h2" id="courses-title">Seven subjects, one way of teaching</h2>
+        <p>Every course starts with a diagnostic lesson and runs at your child's pace. Fees are shared after the free demo.</p>
       </div>
       <div className="courses__grid">
-        <ul className="courses__list">
-          {courses.map((c) => (
-            <li key={c.slug} className="course" onMouseEnter={() => setActive(c.slug)} onFocus={() => setActive(c.slug)} tabIndex={0}>
-              {PICTURES[c.slug] ? <Shot k={c.slug} w={160} /> : <span className="motif" />}
+        {courses.map((c) => (
+          <article key={c.slug} className="course glass glass--hover" data-reveal>
+            <div className="course__img">
+              {PICTURES[c.slug] && <Shot k={c.slug} w={720} />}
+              <span className="chip">{c.subject}</span>
+            </div>
+            <div className="course__body">
+              <h3 className="h3">{c.title}</h3>
+              <div className="course__meta"><span>{c.grade_level}</span><span>{c.duration}</span></div>
+              <p>{c.description}</p>
+              <ul>{c.highlights.slice(0, 3).map((h) => <li key={h}>{h}</li>)}</ul>
+              <a className="course__link" href={`#demo`} data-subject={c.subject}>Book a demo for this <Arrow /></a>
+            </div>
+          </article>
+        ))}
+        <div className="course course--cta glass" data-reveal>
+          <div>
+            <h3 className="display">Not sure where to start?</h3>
+            <p>Book one free class. The mentor will tell you honestly what your child needs.</p>
+            <a className="btn" href="#demo">Book a free demo <Arrow /></a>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+/* ---------- method ---------- */
+const GLOWS = ['rgba(216,255,62,.18)', 'rgba(143,211,255,.18)', 'rgba(255,179,199,.18)', 'rgba(255,195,154,.18)', 'rgba(216,255,62,.14)'];
+function Method() {
+  return (
+    <section className="section method" id="method" aria-labelledby="method-title">
+      <div className="wrap head" data-reveal>
+        <h2 className="display h2" id="method-title">How a class runs</h2>
+        <p>Five habits shape every lesson, from Grade 2 fractions to Grade 12 mock papers.</p>
+      </div>
+      <div className="wrap method__pin">
+        <div className="method__track">
+          {METHOD.map((m, i) => (
+            <article key={m.name} className="step glass" style={{ ['--step-glow' as string]: GLOWS[i] }}>
+              <div className="step__n">{i + 1}</div>
               <div>
-                <div className="course__top">
-                  <h3>{c.title}</h3>
-                  <span className="course__grade">{c.grade_level}</span>
-                </div>
-                <p>{c.description}</p>
-                <p className="course__note">{c.duration} · {c.fee}</p>
+                <h3 className="display">{m.name}</h3>
+                <p>{m.text}</p>
               </div>
-            </li>
+            </article>
+          ))}
+        </div>
+        <div className="method__progress" aria-hidden="true"><i /></div>
+      </div>
+    </section>
+  );
+}
+
+/* ---------- mentor ---------- */
+function Mentor() {
+  return (
+    <section className="section wrap mentor" id="mentor" aria-labelledby="mentor-title">
+      <div className="mentor__frame glass" data-reveal>
+        <Shot k="delhi" w={1100} />
+        <span className="chip chip--lime mentor__badge"><span className="dot" /> Taking new students</span>
+        <p className="mentor__cap">{PICTURES.delhi.credit}: an observatory a short ride from Dakshinpuri, where the academy began.</p>
+      </div>
+      <div data-reveal>
+        <h2 className="display h2" id="mentor-title">Seven years. Two curricula. One mentor.</h2>
+        <p className="lead" style={{ marginTop: 20 }}>Our lead mentor has taught Indian board students and American students since 2019, so the same idea is explained the way CBSE, ICSE or a US classroom expects it.</p>
+        <ul className="mentor__points">
+          {[
+            ['Concept first', 'The reason before the rule. Formulas arrive once the idea is clear.'],
+            ['Small groups or one-to-one', 'Paced by a first diagnostic lesson, never by the slowest or fastest student.'],
+            ['Feedback after every class', 'A short note on what went right and one thing to fix, instead of red ink.'],
+          ].map(([t, d]) => (
+            <li key={t} className="glass"><Mark /><div><strong>{t}</strong><span>{d}</span></div></li>
           ))}
         </ul>
-        {current && (
-          <figure className="preview" aria-hidden="true">
-            <span className="motif">
-              {courses.map((c) =>
-                PICTURES[c.slug] ? (
-                  <img key={c.slug} src={pictureUrl(c.slug, 900)} alt="" loading="lazy" style={{ opacity: c.slug === current.slug ? 1 : 0 }} />
-                ) : null,
-              )}
-            </span>
-            <figcaption>
-              <h3>{current.subject}</h3>
-              <ul>
-                {current.syllabus.map((s) => (
-                  <li key={s}>
-                    <Bullet /> {s}
-                  </li>
-                ))}
-              </ul>
-              {PICTURES[current.slug] && <p className="credit">Picture: {PICTURES[current.slug].credit}</p>}
-            </figcaption>
-          </figure>
-        )}
+        <a className="btn" href="#demo">Meet the mentor in a free class <Arrow /></a>
       </div>
     </section>
   );
 }
 
-function Method() {
-  const [open, setOpen] = useState(0);
-  return (
-    <section className="method on-light" id="method" aria-labelledby="method-title">
-      <div className="method__intro" data-reveal>
-        <h2 className="rv-h" id="method-title">How a class runs</h2>
-        <p>Five habits shape every lesson, from Grade 2 fractions to Grade 12 mock papers. Open each one to see what it means for your child.</p>
-      </div>
-      <div className="stages">
-        {METHOD.map((m, i) => (
-          <button key={m.name} className="stage" aria-expanded={open === i} onClick={() => setOpen(i)}>
-            <span className="stage__name">{m.name}</span>
-            <span className="stage__open">
-              <strong>{m.name}</strong>
-              <span>{m.text}</span>
-            </span>
-          </button>
-        ))}
-      </div>
-    </section>
-  );
-}
-
-function About() {
-  return (
-    <section className="about" id="mentor" aria-labelledby="mentor-title">
-      <div className="about__panel">
-        <div className="about__left">
-          <h2 className="rv-h" id="mentor-title">Seven years. Two curricula.</h2>
-          <Shot k="delhi" w={1200} />
-        </div>
-        <div className="about__right" data-reveal>
-          <div>
-            <h3>India and the US</h3>
-            <p>
-              Our lead mentor has taught Indian board students and American students for over seven years, so the same idea is explained the
-              way CBSE, ICSE or US classrooms expect it.
-            </p>
-          </div>
-          <div>
-            <h3>One mentor who knows your child</h3>
-            <p>
-              Classes are one-to-one or in small groups, paced by a first diagnostic lesson, with short feedback after every session instead
-              of a pile of corrections.
-            </p>
-          </div>
-          <a className="btn" href="#demo">
-            Book a free demo <Bullet />
-          </a>
-        </div>
-        <p className="about__credit">Picture: {PICTURES.delhi.credit}, an observatory a short ride from Dakshinpuri.</p>
-      </div>
-    </section>
-  );
-}
-
+/* ---------- faq ---------- */
 function Faq() {
   return (
-    <section className="faq on-light" id="questions" aria-labelledby="faq-title">
-      <h2 className="rv-h" id="faq-title">Questions parents ask</h2>
+    <section className="section wrap faq" id="faq" aria-labelledby="faq-title">
+      <div className="faq__sticky" data-reveal>
+        <h2 className="display h2" id="faq-title">Questions parents ask</h2>
+        <p>Anything else? Message us on WhatsApp and a human replies, usually within the hour.</p>
+        <a className="btn btn--glass" href={CONTACT.whatsapp}>WhatsApp us <Arrow /></a>
+      </div>
       <div className="faq__list" data-reveal>
         {FAQ.map((f, i) => (
-          <details key={f.q} name="faq" open={i === 0}>
-            <summary>
-              {f.q} <span className="plus" aria-hidden="true" />
-            </summary>
+          <details key={f.q} className="glass" name="faq" open={i === 0}>
+            <summary>{f.q}<span className="plus" aria-hidden="true" /></summary>
             <p>{f.a}</p>
           </details>
         ))}
@@ -321,24 +316,35 @@ function Faq() {
   );
 }
 
+/* ---------- cta + form ---------- */
 function Cta() {
   return (
-    <a className="cta" href="#demo">
-      <p className="cta__note">Pick a slot for a free demo class and we will call you to confirm it.</p>
-      <svg className="cta__arrow" viewBox="0 0 48 48" aria-hidden="true">
-        <path d="M12 36 36 12M16 12h20v20" fill="none" stroke="currentColor" strokeWidth="4" />
-      </svg>
-      <span className="cta__word" aria-hidden="true">Book</span>
-      <span className="visually-hidden">Book a free demo class</span>
-    </a>
+    <section className="cta">
+      <div className="cta__orb" aria-hidden="true" />
+      <h2 className="display" data-reveal>Book the free demo.</h2>
+      <p data-reveal>One real class with the mentor. If it is not right for your child, you owe us nothing and we will say so.</p>
+      <div className="cta__actions" data-reveal>
+        <a className="btn" href="#demo">Pick a slot <Arrow /></a>
+        <a className="btn btn--glass" href={CONTACT.phoneHref}>Call {CONTACT.phone}</a>
+      </div>
+    </section>
   );
 }
 
 const SLOTS = ['Weekday evening, India time', 'Weekend morning, India time', 'Weekday, US time', 'Weekend, US time'];
-
-function Contact({ courses }: { courses: Course[] }) {
+function Demo({ courses }: { courses: Course[] }) {
   const [state, setState] = useState<'idle' | 'sending' | 'sent' | 'error'>('idle');
   const [msg, setMsg] = useState('');
+  const subjectRef = useRef<HTMLSelectElement>(null);
+  // "Book a demo for this" links preselect the subject.
+  useEffect(() => {
+    const f = (e: Event) => {
+      const a = (e.target as HTMLElement).closest<HTMLElement>('[data-subject]');
+      if (a && subjectRef.current) subjectRef.current.value = a.dataset.subject || '';
+    };
+    document.addEventListener('click', f);
+    return () => document.removeEventListener('click', f);
+  }, []);
   async function submit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const form = e.currentTarget;
@@ -358,139 +364,143 @@ function Contact({ courses }: { courses: Course[] }) {
     }
   }
   return (
-    <section className="contact" id="demo" aria-labelledby="demo-title">
-      <div className="coupon on-light" data-reveal>
-        <div className="coupon__left">
-          <h2 id="demo-title">Your free demo class</h2>
-          <p>
-            Tell us who is learning and when suits you. Prefer to talk? Call <a href={CONTACT.phoneHref}>{CONTACT.phone}</a> or{' '}
-            <a href={CONTACT.whatsapp}>message on WhatsApp</a>.
-          </p>
+    <section className="wrap" id="demo" aria-labelledby="demo-title">
+      <div className="demo glass" data-reveal>
+        <div className="demo__side">
+          <div>
+            <h2 className="display h2" id="demo-title">Your free demo class</h2>
+            <p>Tell us who is learning and when suits you. We call within a day to fix the slot.</p>
+          </div>
+          <ul>
+            <li><Mark />A full lesson, not a sales call</li>
+            <li><Mark />Honest advice on what your child needs</li>
+            <li><Mark />Prefer to talk? <a href={CONTACT.whatsapp}>WhatsApp</a> or <a href={CONTACT.phoneHref}>{CONTACT.phone}</a></li>
+          </ul>
         </div>
-        <form onSubmit={submit} noValidate={false}>
-          <label className="visually-hidden" htmlFor="parent_name">Your name</label>
-          <input id="parent_name" name="parent_name" placeholder="Your name" required minLength={2} maxLength={80} autoComplete="name" />
-          <label className="visually-hidden" htmlFor="student_name">Student's name</label>
-          <input id="student_name" name="student_name" placeholder="Student's name" required maxLength={80} />
-          <label className="visually-hidden" htmlFor="student_grade">Grade</label>
-          <input id="student_grade" name="student_grade" placeholder="Grade, e.g. Grade 7" maxLength={40} />
-          <label className="visually-hidden" htmlFor="subject">Subject</label>
-          <select id="subject" name="subject" defaultValue="">
-            <option value="" disabled>Subject</option>
-            {courses.map((c) => (
-              <option key={c.slug} value={c.subject}>{c.subject}</option>
-            ))}
-          </select>
-          <label className="visually-hidden" htmlFor="phone">Phone or WhatsApp</label>
-          <input id="phone" name="phone" type="tel" placeholder="Phone or WhatsApp" required maxLength={20} autoComplete="tel" />
-          <label className="visually-hidden" htmlFor="email">Email</label>
-          <input id="email" name="email" type="email" placeholder="Email (optional)" maxLength={120} autoComplete="email" />
-          <label className="visually-hidden" htmlFor="preferred_time_slot">Preferred time</label>
-          <select id="preferred_time_slot" name="preferred_time_slot" defaultValue="" className="full">
-            <option value="" disabled>When suits you</option>
-            {SLOTS.map((s) => (
-              <option key={s}>{s}</option>
-            ))}
-          </select>
-          <label className="visually-hidden" htmlFor="message">Anything we should know</label>
-          <textarea id="message" name="message" className="full" placeholder="Anything we should know, like your city or what feels hard right now" maxLength={600} />
+        <form onSubmit={submit}>
+          <label className="field"><span>Your name</span><input name="parent_name" required minLength={2} maxLength={80} autoComplete="name" placeholder="Priya Sharma" /></label>
+          <label className="field"><span>Student's name</span><input name="student_name" required maxLength={80} placeholder="Aarav" /></label>
+          <label className="field"><span>Grade</span><input name="student_grade" maxLength={40} placeholder="Grade 7" /></label>
+          <label className="field"><span>Subject</span>
+            <select name="subject" defaultValue="" ref={subjectRef}>
+              <option value="">Not sure yet</option>
+              {courses.map((c) => <option key={c.slug} value={c.subject}>{c.subject}</option>)}
+            </select>
+          </label>
+          <label className="field"><span>Phone or WhatsApp</span><input name="phone" type="tel" required maxLength={20} autoComplete="tel" placeholder="+91 98xxx xxxxx" /></label>
+          <label className="field"><span>Email (optional)</span><input name="email" type="email" maxLength={120} autoComplete="email" placeholder="you@example.com" /></label>
+          <label className="field full"><span>When suits you</span>
+            <select name="preferred_time_slot" defaultValue="">
+              <option value="">Any time works</option>
+              {SLOTS.map((s) => <option key={s}>{s}</option>)}
+            </select>
+          </label>
+          <label className="field full"><span>Anything we should know</span><textarea name="message" maxLength={600} placeholder="Your city, the board, what feels hard right now…" /></label>
           <input className="hp" name="website" tabIndex={-1} autoComplete="off" aria-hidden="true" />
-          <button className="btn btn--ink full" disabled={state === 'sending'}>
-            {state === 'sending' ? 'Sending…' : 'Book the free demo'} <Bullet />
-          </button>
-          <p className={`form-msg ${state === 'error' ? 'err' : ''}`} role="status">{msg}</p>
+          <button className="btn full" disabled={state === 'sending'}>{state === 'sending' ? 'Sending…' : 'Book the free demo'} <Arrow /></button>
+          <p className={`msg full ${state === 'error' ? 'msg--err' : state === 'sent' ? 'msg--ok' : ''}`} role="status">{msg}</p>
         </form>
       </div>
     </section>
   );
 }
 
-const MARK_COLOURS = ['var(--lime)', 'var(--peri)', 'var(--pink)', 'var(--sand)', 'var(--peach)', 'var(--lime)', 'var(--peri)', 'var(--pink)'];
-const MARK_HEIGHTS = [100, 78, 88, 64, 94, 72, 84, 100];
-
-function Footer() {
+/* ---------- footer ---------- */
+export function Footer({ children }: { children?: ReactNode }) {
   return (
     <footer className="foot">
-      <div className="mark" aria-label="Raghvyon">
-        {'RAGHVYON'.split('').map((l, i) => (
-          <span key={i} aria-hidden="true" style={{ background: MARK_COLOURS[i], height: `${MARK_HEIGHTS[i]}%` }}>
-            {l}
-          </span>
-        ))}
-      </div>
-      <div className="foot__cols">
-        <nav aria-label="Footer">
-          <a href="#courses">Courses</a>
-          <a href="#method">Method</a>
-          <a href="#mentor">Mentor</a>
-        </nav>
-        <nav aria-label="More">
-          <a href="#questions">Questions</a>
-          <a href="#demo">Book a demo</a>
-          <a href="/portal">Student login</a>
-        </nav>
-        <nav aria-label="Legal">
-          <a href="/privacy">Privacy policy</a>
-          <a href="/terms">Terms of service</a>
-        </nav>
-        <div className="foot__contact">
-          <span>{CONTACT.address}</span>
-          <a href={CONTACT.phoneHref}>{CONTACT.phone}</a>
-          <a href={`mailto:${CONTACT.email}`}>{CONTACT.email}</a>
+      <div className="wrap">
+        <div className="foot__top">
+          <div className="foot__brand">
+            <Wordmark />
+            <p>Concept-first classes for Grades 2 to 12, taught from New Delhi to students in India and the US.</p>
+          </div>
+          <div className="foot__col"><h4>Academy</h4><a href="/#courses">Courses</a><a href="/#method">Method</a><a href="/#mentor">Mentor</a><a href="/#faq">FAQ</a></div>
+          <div className="foot__col"><h4>Students</h4><a href="/portal">Sign in</a><a href="/#demo">Book a demo</a><a href="/privacy">Privacy policy</a><a href="/terms">Terms of service</a></div>
+          <div className="foot__col"><h4>Contact</h4><a href={CONTACT.phoneHref}>{CONTACT.phone}</a><a href={`mailto:${CONTACT.email}`}>{CONTACT.email}</a><span>{CONTACT.address}</span></div>
         </div>
-        <p className="foot__credits">
-          Pictures, all public domain via Wikimedia Commons: {Object.values(PICTURES).map((p) => p.credit).join('; ')}. They show the world of
-          each subject, not the academy.
-        </p>
-      </div>
-      <div className="foot__last">
-        <span>© {new Date().getFullYear()} Raghvyon Academy, New Delhi</span>
-        <a className="btn" href="#top">Back to top</a>
+        {children}
+        <div className="foot__bottom"><span>© {new Date().getFullYear()} Raghvyon Academy, New Delhi</span><a href="#top">Back to top ↑</a></div>
       </div>
     </footer>
   );
 }
 
+/* ---------- page ---------- */
 export default function Site() {
   const [courses, setCourses] = useState<Course[]>(FALLBACK_COURSES);
+  const [cubeReady, setCubeReady] = useState(false);
+  const root = useRef<HTMLDivElement>(null);
+
+  // Never hold the page behind the loader for more than a moment, even on a slow connection.
   useEffect(() => {
-    fetch('/api/courses')
-      .then((r) => (r.ok ? r.json() : Promise.reject()))
-      .then((rows: Course[]) => rows.length && setCourses(rows))
-      .catch(() => {}); // fallback rows already shown
+    const t = setTimeout(() => setCubeReady(true), 2600);
+    return () => clearTimeout(t);
   }, []);
 
   useEffect(() => {
-    // Reveal on scroll position, not IntersectionObserver: background tabs and fast jumps never strand content hidden.
+    fetch('/api/courses').then((r) => (r.ok ? r.json() : Promise.reject())).then((rows: Course[]) => rows.length && setCourses(rows)).catch(() => {});
+  }, []);
+
+  useEffect(() => {
     document.documentElement.classList.add('js');
-    const check = () =>
-      document.querySelectorAll('[data-reveal]:not(.in)').forEach((el) => {
-        if (el.getBoundingClientRect().top < innerHeight * 0.88) el.classList.add('in');
+    if (reduceMotion()) {
+      document.querySelectorAll<HTMLElement>('[data-reveal],[data-hero]').forEach((el) => { el.style.opacity = '1'; el.style.transform = 'none'; });
+      return;
+    }
+    const ctx = gsap.context(() => {
+      gsap.fromTo('[data-hero]', { opacity: 0, y: 36 }, { opacity: 1, y: 0, duration: 1.1, ease: 'power3.out', stagger: 0.09, delay: 0.9 });
+      ScrollTrigger.batch('[data-reveal]', {
+        start: 'top 88%',
+        onEnter: (els) => gsap.to(els, { opacity: 1, y: 0, duration: 0.9, ease: 'power3.out', stagger: 0.08, overwrite: true }),
+        once: true,
       });
-    check();
-    addEventListener('scroll', check, { passive: true });
-    addEventListener('resize', check);
-    return () => {
-      removeEventListener('scroll', check);
-      removeEventListener('resize', check);
-    };
+      document.querySelectorAll<HTMLElement>('[data-count]').forEach((el) => {
+        const n = { v: 0 };
+        gsap.to(n, { v: Number(el.dataset.count), duration: 1.4, ease: 'power2.out', scrollTrigger: { trigger: el, start: 'top 85%', once: true }, onUpdate: () => (el.textContent = String(Math.round(n.v))) });
+      });
+      // The method steps slide horizontally while the section stays pinned (desktop only).
+      ScrollTrigger.matchMedia({
+        '(min-width: 961px)': () => {
+          const track = document.querySelector<HTMLElement>('.method__track');
+          const pin = document.querySelector<HTMLElement>('.method__pin');
+          const bar = document.querySelector<HTMLElement>('.method__progress i');
+          if (!track || !pin) return;
+          const dist = () => track.scrollWidth - pin.clientWidth;
+          gsap.to(track, {
+            x: () => -dist(),
+            ease: 'none',
+            scrollTrigger: { trigger: pin, start: 'top 12%', end: () => `+=${dist()}`, pin: true, scrub: 0.6, invalidateOnRefresh: true, onUpdate: (st) => { if (bar) bar.style.width = `${st.progress * 100}%`; } },
+          });
+        },
+      });
+    }, root);
+    const refresh = () => ScrollTrigger.refresh();
+    const t = setTimeout(refresh, 1500);
+    return () => { clearTimeout(t); ctx.revert(); };
   }, [courses]);
 
   return (
-    <div className="rv" id="top">
-      <Hero />
+    <div ref={root} id="top">
+      <Loader done={cubeReady} />
+      <Nav />
+      <Hero onCubeReady={() => setCubeReady(true)} />
       <main>
-        <Folders />
-        <Intro />
+        <Marquee />
+        <Stats />
         <LiveCube />
         <Courses courses={courses} />
         <Method />
-        <About />
+        <Mentor />
         <Faq />
         <Cta />
-        <Contact courses={courses} />
+        <Demo courses={courses} />
       </main>
-      <Footer />
+      <Footer>
+        <p className="foot__credits">
+          Pictures, all public domain via Wikimedia Commons: {Object.values(PICTURES).map((p) => p.credit).join('; ')}. They show the world of each subject, not the academy.
+        </p>
+      </Footer>
     </div>
   );
 }
