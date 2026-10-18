@@ -274,7 +274,7 @@ function About() {
   return (
     <section className="about" id="mentor" aria-labelledby="mentor-title">
       <div className="about__panel">
-        <div className="about__left" data-reveal>
+        <div className="about__left">
           <h2 className="rv-h" id="mentor-title">Seven years. Two curricula.</h2>
           <Shot k="delhi" w={1200} />
         </div>
